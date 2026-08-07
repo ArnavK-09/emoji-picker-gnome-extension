@@ -1,0 +1,9 @@
+{
+  "uuid": "emoji-picker@ArnavK-09",
+  "name": "Emoji Picker by ArnavK-09",
+  "description": "Open a cursor-anchored emoji picker with a configurable keyboard shortcut and copy any emoji, with a built-in zalgo text generator.",
+  "shell-version": ["50"],
+  "url": "https://github.com/ArnavK-09/emoji-picker",
+  "gettext-domain": "emoji-picker",
+  "settings-schema": "org.gnome.shell.extensions.emoji-picker"
+}

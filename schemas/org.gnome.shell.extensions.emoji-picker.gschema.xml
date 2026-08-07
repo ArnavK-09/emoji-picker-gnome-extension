@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="emoji-picker">
+  <schema id="org.gnome.shell.extensions.emoji-picker"
+      path="/org/gnome/shell/extensions/emoji-picker/">
+
+    <key name="keybinding" type="as">
+      <default>['&lt;Primary&gt;K']</default>
+      <summary>Keyboard shortcut to open the emoji picker</summary>
+      <description>
+        Keybinding that toggles the emoji picker popup. Default is
+        Ctrl+K. Set to empty in the preferences dialog to free the
+        shortcut.
+      </description>
+    </key>
+
+    <key name="default-category" type="s">
+      <default>'recent'</default>
+      <summary>Category shown first when the picker opens</summary>
+      <description>
+        Which tab is active by default when the popup is opened. Use "recent"
+        to land on the recently-used emojis view.
+      </description>
+      <choices>
+        <choice value="recent"/>
+        <choice value="smileys"/>
+        <choice value="people"/>
+        <choice value="animals"/>
+        <choice value="food"/>
+        <choice value="activities"/>
+        <choice value="travel"/>
+        <choice value="objects"/>
+        <choice value="symbols"/>
+        <choice value="flags"/>
+      </choices>
+    </key>
+
+    <key name="recent-count" type="i">
+      <default>30</default>
+      <summary>Number of recently-used emojis to remember</summary>
+      <description>
+        How many emojis are kept and shown in the recently-used section.
+      </description>
+      <range min="1" max="100"/>
+    </key>
+
+    <key name="recents" type="as">
+      <default>[]</default>
+      <summary>Recently-used emojis</summary>
+      <description>
+        Emoji characters the user has copied, most-recent first.
+      </description>
+    </key>
+
+    <key name="skin-tone" type="s">
+      <default>'none'</default>
+      <summary>Default skin tone for applicable emojis</summary>
+      <description>
+        Skin tone modifier applied to emojis that support skin tones when
+        they are copied. "none" copies the base emoji unchanged.
+      </description>
+      <choices>
+        <choice value="none"/>
+        <choice value="light"/>
+        <choice value="medium-light"/>
+        <choice value="medium"/>
+        <choice value="medium-dark"/>
+        <choice value="dark"/>
+      </choices>
+    </key>
+
+    <key name="paste-on-select" type="b">
+      <default>true</default>
+      <summary>Paste the selected emoji into the focused field</summary>
+      <description>
+        When an emoji is selected, type it into the currently focused text
+        field (synthesised Shift+Insert). The emoji is also placed on the
+        clipboard either way. Disable this if you only want the emoji on
+        the clipboard so you can paste manually.
+      </description>
+    </key>
+
+  </schema>
+</schemalist>
