@@ -63,12 +63,6 @@ class PreferencesBuilder {
     this._warningIcon = new Gtk.Image({ icon_name: 'dialog-warning-symbolic', visible: false });
     this._conflictRow.add_suffix(this._warningIcon);
 
-    // Map of Gdk keyvals to ignore: bare modifier presses (Shift, Ctrl,
-    // Alt, Super, Hyper, Meta) and a handful of keys that should not be
-    // recorded as a shortcut on their own. Without this filter the first
-    // Ctrl (or any modifier) keypress would be recorded as the entire
-    // shortcut, which is the classic "press Ctrl+K and the label shows
-    // <Primary>" bug.
     const IGNORED_KEYVALS = new Set([
       Gdk.KEY_Shift_L, Gdk.KEY_Shift_R,
       Gdk.KEY_Control_L, Gdk.KEY_Control_R,
@@ -83,8 +77,6 @@ class PreferencesBuilder {
 
     const accelToLabel = (accel) => {
       if (!accel) return 'Disabled';
-      // Translate GTK accelerator names like "<Primary>K" into a
-      // human-friendly label like "Ctrl + K".
       const replacements = [
         ['<Primary>', 'Ctrl + '],
         ['<primary>', 'Ctrl + '],
@@ -113,7 +105,6 @@ class PreferencesBuilder {
     };
 
     shortcutButton.connect('clicked', () => {
-      const original = this._settings.get_strv(SETTING.KEYBINDING)[0];
       shortcutButton.set_label('Press keys…');
       shortcutButton.grab_focus();
 
@@ -124,7 +115,6 @@ class PreferencesBuilder {
       const handlerId = controller.connect('key-pressed', (_c, keyval, keycode, mask) => {
         const cleanMask = mask & Gtk.accelerator_get_default_mod_mask();
 
-        // Escape cancels.
         if (cleanMask === 0 && keyval === Gdk.KEY_Escape) {
           if (debounceTimeoutId) {
             clearTimeout(debounceTimeoutId);
@@ -136,7 +126,6 @@ class PreferencesBuilder {
           return Gdk.EVENT_STOP;
         }
 
-        // Backspace (no modifier) clears the binding.
         if (cleanMask === 0 && keyval === Gdk.KEY_BackSpace) {
           if (debounceTimeoutId) {
             clearTimeout(debounceTimeoutId);
@@ -149,14 +138,10 @@ class PreferencesBuilder {
           return Gdk.EVENT_STOP;
         }
 
-        // Ignore bare modifier presses: they would otherwise be recorded
-        // as the full shortcut.
         if (IGNORED_KEYVALS.has(keyval)) {
           return Gdk.EVENT_STOP;
         }
 
-        // Update the label live so the user can see what they're about
-        // to commit.
         const accel = Gtk.accelerator_name(keyval, cleanMask);
         shortcutButton.set_label(accelToLabel(accel));
 

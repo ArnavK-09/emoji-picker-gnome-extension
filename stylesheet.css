@@ -1,21 +1,15 @@
-/* The popup. Pinned width so the layout never reflows based on contents.
-   The shell's .popup-menu-content already provides 6px of inner padding,
-   so we explicitly do NOT add another layer — that was the source of
-   the search-entry overflow. */
 .popup-menu-box.emoji-picker-menu {
   width: 340px;
   min-width: 340px;
   max-width: 340px;
-  /* padding comes from .popup-menu-content — do not stack another 6px */
   background-color: rgba(28, 28, 28, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
 
-/* Tab strip. */
 .emoji-categories-header {
-  padding: 0 0 2px 0;
+  padding: 4px 0 0 0;
   spacing: 2px;
   background-color: transparent;
 }
@@ -41,17 +35,11 @@
   icon-size: 14px;
 }
 
-/* Search row sits right under the tab strip with minimal gap. */
 .emoji-search-row {
-  padding: 2px 0;
+  padding: 4px 0 4px 0;
   background-color: transparent;
 }
 
-/* Rounded search input. The width/box-sizing rules are critical: they
-   prevent the entry from overflowing its parent BoxLayout, which was
-   happening because the default %entry padding (9px each side) plus
-   the search icon (16px + 6px spacing) was eating into the layout
-   box and pushing the entry's painted area past the popup's edge. */
 .emoji-search-row .search-entry {
   border-radius: 12px;
   min-height: 28px;
@@ -66,12 +54,8 @@
   background-color: rgba(255, 255, 255, 0.10);
 }
 
-/* ScrollView body. max-height keeps the popup from blowing up; the
-   scrollview itself has a fixed allocation so it doesn't try to be the
-   full content height. */
 .emoji-body-scroll {
   max-height: 320px;
-  min-height: 80px;
   background-color: transparent;
 }
 
@@ -82,30 +66,26 @@
 .emoji-body {
   spacing: 0;
   background-color: transparent;
-}
-
-/* One horizontal row of emoji cells. */
-.EmojisRow {
-  spacing: 0;
-  padding: 2px 0;
-  background-color: transparent;
-}
-
-/* Emoji tile. Subtle tile background so each button reads as a distinct
-   cell rather than floating text. Fixed 32×32 so the 9-column grid never
-   reflows. */
-.EmojisItemStyle {
-  width: 32px;
-  height: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  max-width: 32px;
-  max-height: 32px;
+  margin: 0;
   padding: 0;
-  margin: 1px;
+}
+
+.EmojisRow {
+  background-color: transparent;
+  margin: 0;
+  padding: 0;
+  spacing: 0;
+}
+
+.EmojisItemStyle {
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
+  padding: 0;
+  margin: 0;
   border-radius: 8px;
   font-size: 18px;
-  background-color: rgba(255, 255, 255, 0.04);
+  background-color: transparent;
   border: 0;
   box-shadow: none;
 }
@@ -123,7 +103,6 @@
   font-size: 18px;
 }
 
-/* Empty search state. */
 .emoji-empty {
   padding: 20px 8px;
   color: rgba(255, 255, 255, 0.55);

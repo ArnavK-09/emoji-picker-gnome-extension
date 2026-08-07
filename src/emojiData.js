@@ -1,6 +1,3 @@
-// Auto-generated from emoji-copy@felipeftn/data/emojis.db.
-// Do not edit by hand; regenerate via scripts/generate_emoji_data.py.
-
 import { SKIN_TONE_MODIFIER } from './constants.js';
 
 export const CATEGORIES = [

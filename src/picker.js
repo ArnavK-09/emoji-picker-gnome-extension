@@ -1,31 +1,9 @@
-/*
- * EmojiPicker — keybind-only cursor-anchored popup.
- *
- * Pattern (modeled on clipboard-gnome-extension-demo and emoji-copy):
- * - A `PanelMenu.Button` is added to the panel status area so the shell's
- *   PopupMenuManager picks it up (this is what makes focus-out / click-out
- *   close the menu automatically). The button is sized to 0×0 and made
- *   invisible, so no tray icon is shown — only the popup itself appears.
- * - The popup is anchored to a 1×1 invisible `St.Widget` placed at the
- *   cursor's screen position when the keybind fires, so the menu opens
- *   right under the cursor and stays there.
- * - Width, max-height and padding are pinned so the popup never reflows,
- *   overflows the monitor, or grows past a sane size.
- *
- * UX:
- * - Search entry is NOT auto-focused on open; focus it only when the user
- *   clicks it or starts typing a letter.
- * - Categories are shown as a flat 9-column grid; search results are a
- *   flat deduplicated grid.
- * - Picking an emoji (click or Enter) copies to clipboard, optionally
- *   pastes into the focused field, and closes the menu.
- */
-
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 
+import * as AnimationUtils from 'resource:///org/gnome/shell/misc/animationUtils.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 
@@ -35,12 +13,14 @@ import { RecentStore } from './recents.js';
 import { SETTING } from './constants.js';
 
 const TABS = [
-  { id: 'recent', icon: 'document-open-recent-symbolic', label: 'Recent' },
-  ...CATEGORIES.map((c) => ({ id: c.id, icon: c.icon, label: c.label })),
+  { id: 'recent', icon: 'document-open-recent-symbolic', label: 'Recent', a11yLabel: 'Recently used emojis', alias: 'recents' },
+  ...CATEGORIES.map((c) => ({ id: c.id, icon: c.icon, label: c.label, a11yLabel: c.label, alias: c.id })),
 ];
 
 const EMOJIS_PER_ROW = 9;
 const POPUP_WIDTH = 340;
+const SEARCH_FOCUS_DELAY_MS = 20;
+const KEYBIND_DEBOUNCE_MS = 600;
 
 function isPrintableKey(event) {
   const sym = event.get_key_symbol();
@@ -58,7 +38,7 @@ function isPrintableKey(event) {
   );
 }
 
-function makeEmojiButton(char, name, onActivate) {
+function makeEmojiButton(char, name, onActivate, scrollView) {
   const btn = new St.Button({
     style_class: 'EmojisItemStyle',
     can_focus: true,
@@ -68,6 +48,11 @@ function makeEmojiButton(char, name, onActivate) {
   });
   btn._emoji = { char, name };
   btn.connect('clicked', () => onActivate(btn._emoji));
+  btn.connect('key-focus-in', () => {
+    if (scrollView) {
+      AnimationUtils.ensureActorVisibleInScrollView(scrollView, btn);
+    }
+  });
   btn.connect('key-press-event', (_a, event) => {
     const sym = event.get_key_symbol();
     if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
@@ -80,20 +65,29 @@ function makeEmojiButton(char, name, onActivate) {
 }
 
 function makeRowContainer() {
-  return new St.BoxLayout({
+  const row = new St.Widget({
     style_class: 'EmojisRow',
+    layout_manager: new Clutter.GridLayout({
+      orientation: Clutter.Orientation.HORIZONTAL,
+      column_homogeneous: true,
+      row_homogeneous: true,
+    }),
     x_expand: true,
     y_expand: false,
   });
+  row._gridLayout = row.layout_manager;
+  return row;
 }
 
 class EmojiCategoryData {
-  constructor(tab, emojis, onActivate) {
+  constructor(tab, emojis, onActivate, scrollView) {
     this.tab = tab;
     this.emojis = emojis;
     this._onActivate = onActivate;
+    this._scrollView = scrollView;
     this._rows = [];
     this._buttons = [];
+    this._gridLayouts = [];
     this._built = false;
   }
 
@@ -101,10 +95,16 @@ class EmojiCategoryData {
     if (this._built) return;
     this._built = true;
     for (let i = 0; i < this.emojis.length; i++) {
-      if (i % EMOJIS_PER_ROW === 0) this._rows.push(makeRowContainer());
+      const col = i % EMOJIS_PER_ROW;
+      const rowIdx = Math.floor(i / EMOJIS_PER_ROW);
+      if (i % EMOJIS_PER_ROW === 0) {
+        const row = makeRowContainer();
+        this._rows.push(row);
+        this._gridLayouts.push(row._gridLayout);
+      }
       const { char, name } = this.emojis[i];
-      const btn = makeEmojiButton(char, name, this._onActivate);
-      this._rows[this._rows.length - 1].add_child(btn);
+      const btn = makeEmojiButton(char, name, this._onActivate, this._scrollView);
+      this._gridLayouts[this._gridLayouts.length - 1].attach(btn, col, rowIdx, 1, 1);
       this._buttons.push(btn);
     }
   }
@@ -123,6 +123,7 @@ class EmojiCategoryData {
       row.destroy();
     }
     this._rows = [];
+    this._gridLayouts = [];
     this._buttons = [];
     this._built = false;
   }
@@ -139,7 +140,6 @@ const EmojiPickerMenu = GObject.registerClass(
   { GTypeName: 'EmojiPickerMenu' },
   class EmojiPickerMenu extends PanelMenu.Button {
     _init(extension) {
-      // No visible panel button — we just need the popup machinery.
       super._init(0.0, 'Emoji Picker', false);
       this.visible = false;
       this.set_size(0, 0);
@@ -148,8 +148,6 @@ const EmojiPickerMenu = GObject.registerClass(
       this._clipboard = new Clipboard();
       this._recents = new RecentStore(this._settings);
 
-      // Anchor widget the menu is positioned around when opening at the
-      // cursor. 1×1, invisible, non-reactive.
       this._cursorAnchor = new St.Widget({
         width: 1,
         height: 1,
@@ -160,17 +158,11 @@ const EmojiPickerMenu = GObject.registerClass(
 
       this._categories = new Map();
       this._categoryOrder = [];
-      this._buildAllCategories();
-      this._recentsCategory = this._buildRecentsCategory();
 
-      // --- menu contents -------------------------------------------------
       const box = this.menu.box;
       box.add_style_class_name('emoji-picker-menu');
-      // Width is owned by CSS (.popup-menu-box.emoji-picker-menu), not JS,
-      // so the layout doesn't fight between two competing width sources.
       box.spacing = 4;
 
-      // Tab strip
       this._headerBox = new St.BoxLayout({
         style_class: 'emoji-categories-header',
         x_expand: true,
@@ -184,7 +176,7 @@ const EmojiPickerMenu = GObject.registerClass(
           track_hover: true,
           toggle_mode: true,
           style_class: 'EmojisCategory',
-          accessible_name: tab.label,
+          accessible_name: tab.a11yLabel || tab.label,
           child: new St.Icon({ icon_name: tab.icon, icon_size: 14 }),
           x_expand: true,
           x_align: Clutter.ActorAlign.CENTER,
@@ -195,7 +187,6 @@ const EmojiPickerMenu = GObject.registerClass(
       }
       box.add_child(this._headerBox);
 
-      // Search row
       this._searchEntry = new St.Entry({
         name: 'searchEntry',
         style_class: 'search-entry emoji-search-entry',
@@ -231,7 +222,6 @@ const EmojiPickerMenu = GObject.registerClass(
       searchBox.add_child(this._searchEntry);
       box.add_child(searchBox);
 
-      // Scrollable body
       this._bodyScroll = new St.ScrollView({
         style_class: 'emoji-body-scroll',
         overlay_scrollbars: true,
@@ -249,11 +239,14 @@ const EmojiPickerMenu = GObject.registerClass(
       this._bodyScroll.set_child(this._bodyBox);
       box.add_child(this._bodyScroll);
 
+      this._buildAllCategories();
+      this._recentsCategory = this._buildRecentsCategory();
+
       this._activeTab = null;
       this._searchRows = [];
       this._searchButtons = [];
       this._stageKeyId = 0;
-      this._outsideKeyId = 0;
+      this._focusTimer = 0;
 
       this._openTab(this._settings.get_string(SETTING.DEFAULT_CATEGORY) || 'recent');
 
@@ -274,17 +267,11 @@ const EmojiPickerMenu = GObject.registerClass(
       }
       this._cursorAnchor.visible = true;
       this._connectStageKey();
-      // Grab Clutter focus on the search entry once the menu is fully
-      // opened. This is the standard pattern from emoji-copy — a deferred
-      // set_key_focus after ~20ms lets the modal grab settle before we
-      // redirect keyboard focus, and ensures that a printable letter typed
-      // next is directed at the search entry (and not at the X-focused
-      // external text field the user was in when they hit the keybind).
       if (this._focusTimer) {
         GLib.source_remove(this._focusTimer);
         this._focusTimer = 0;
       }
-      this._focusTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
+      this._focusTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SEARCH_FOCUS_DELAY_MS, () => {
         this._focusTimer = 0;
         if (this.menu.isOpen) {
           global.stage.set_key_focus(this._searchEntry);
@@ -293,11 +280,6 @@ const EmojiPickerMenu = GObject.registerClass(
       });
     }
 
-    // When the menu is open, listen at the global stage for keys so that
-    // (a) a printable letter focuses the search box and starts typing, and
-    // (b) Escape closes the menu. The PopupMenuManager already closes on
-    // focus-out and click-out for us; we only need to handle these two
-    // input cases.
     _connectStageKey() {
       if (this._stageKeyId) return;
       this._stageKeyId = global.stage.connect(
@@ -319,8 +301,6 @@ const EmojiPickerMenu = GObject.registerClass(
       const focus = global.stage.get_key_focus();
       const searchText = this._searchEntry.clutter_text;
 
-      // If the search entry is already focused, let it handle the key
-      // (so the user can type into it normally).
       if (focus === searchText || focus === this._searchEntry) {
         return Clutter.EVENT_PROPAGATE;
       }
@@ -339,8 +319,6 @@ const EmojiPickerMenu = GObject.registerClass(
 
       return Clutter.EVENT_PROPAGATE;
     }
-
-    // --- search --------------------------------------------------------
 
     _onSearchChanged(text) {
       const query = (text || '').toLowerCase().trim();
@@ -398,14 +376,25 @@ const EmojiPickerMenu = GObject.registerClass(
       }
       const onActivate = (e) => this._selectEmoji(e);
       let row = null;
+      let gridLayout = null;
+      let rowIdx = 0;
+      let col = 0;
       for (let i = 0; i < emojis.length; i++) {
         if (i % EMOJIS_PER_ROW === 0) {
           row = makeRowContainer();
+          gridLayout = row._gridLayout;
           this._bodyBox.add_child(row);
           this._searchRows.push(row);
+          rowIdx = 0;
+          col = 0;
         }
-        const btn = makeEmojiButton(emojis[i].char, emojis[i].name, onActivate);
-        row.add_child(btn);
+        const btn = makeEmojiButton(emojis[i].char, emojis[i].name, onActivate, this._bodyScroll);
+        gridLayout.attach(btn, col, rowIdx, 1, 1);
+        col++;
+        if (col === EMOJIS_PER_ROW) {
+          col = 0;
+          rowIdx++;
+        }
         this._searchButtons.push(btn);
       }
     }
@@ -450,8 +439,6 @@ const EmojiPickerMenu = GObject.registerClass(
       }
     }
 
-    // --- categories ---------------------------------------------------
-
     _buildAllCategories() {
       for (const tab of TABS) {
         if (tab.id === 'recent') continue;
@@ -461,7 +448,7 @@ const EmojiPickerMenu = GObject.registerClass(
           .map((e) => EMOJI_BY_CHAR.get(e.c))
           .filter((e) => !!e);
         const cat = new EmojiCategoryData(tab, emojis, (emoji) =>
-          this._selectEmoji(emoji),
+          this._selectEmoji(emoji), this._bodyScroll,
         );
         this._categories.set(tab.id, cat);
         this._categoryOrder.push(cat);
@@ -475,7 +462,7 @@ const EmojiPickerMenu = GObject.registerClass(
         .filter((e) => !!e);
       const tab = { id: 'recent', label: 'Recently used' };
       const cat = new EmojiCategoryData(tab, emojis, (emoji) =>
-        this._selectEmoji(emoji),
+        this._selectEmoji(emoji), this._bodyScroll,
       );
       cat.build();
       return cat;
@@ -532,8 +519,6 @@ const EmojiPickerMenu = GObject.registerClass(
       }
     }
 
-    // --- selection ---------------------------------------------------
-
     _selectEmoji(emoji) {
       const char = emoji?.char;
       if (!char) return;
@@ -561,14 +546,9 @@ const EmojiPickerMenu = GObject.registerClass(
       const [px, py] = global.get_pointer();
       const margin = 8;
 
-      // Width is fixed (CSS). For height, the popup is at most
-      // header(32) + search(36) + body(320) + padding(12) ≈ 400px; use
-      // POPUP_MAX_HEIGHT as a hard cap.
       const w = POPUP_WIDTH;
       const h = 400;
 
-      // Prefer opening to the right and below the cursor; flip left/up
-      // if it would overflow the monitor.
       let cx = px + margin;
       if (cx + w > monitor.x + monitor.width - margin) {
         cx = px - w - margin;
@@ -609,9 +589,6 @@ const EmojiPickerMenu = GObject.registerClass(
 export class EmojiPicker {
   constructor(extension, settings) {
     this._menu = new EmojiPickerMenu(extension);
-    // Add to the panel status area (this is what wires the menu into
-    // Main.popupMenuManager so it auto-closes on focus-out / click-out),
-    // but the button itself stays invisible — no tray icon is rendered.
     Main.panel.addToStatusArea(
       'EmojiPicker',
       this._menu,
