@@ -1,7 +1,7 @@
 .popup-menu-box.emoji-picker-menu {
-  width: 340px;
-  min-width: 340px;
-  max-width: 340px;
+  width: 342px;
+  min-width: 342px;
+  max-width: 342px;
   background-color: rgba(28, 28, 28, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
@@ -78,6 +78,9 @@
 }
 
 .EmojisItemStyle {
+  width: 36px;
+  min-width: 36px;
+  max-width: 36px;
   height: 36px;
   min-height: 36px;
   max-height: 36px;

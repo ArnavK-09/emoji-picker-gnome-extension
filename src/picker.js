@@ -18,7 +18,7 @@ const TABS = [
 ];
 
 const EMOJIS_PER_ROW = 9;
-const POPUP_WIDTH = 340;
+const POPUP_WIDTH = 342;
 const SEARCH_FOCUS_DELAY_MS = 20;
 const KEYBIND_DEBOUNCE_MS = 600;
 
@@ -45,6 +45,8 @@ function makeEmojiButton(char, name, onActivate, scrollView) {
     label: char,
     x_expand: false,
     y_expand: false,
+    x_align: Clutter.ActorAlign.CENTER,
+    y_align: Clutter.ActorAlign.CENTER,
   });
   btn._emoji = { char, name };
   btn.connect('clicked', () => onActivate(btn._emoji));
@@ -79,6 +81,18 @@ function makeRowContainer() {
   return row;
 }
 
+function padRowContainer(row, usedColumns) {
+  for (let col = usedColumns; col < EMOJIS_PER_ROW; col++) {
+    const placeholder = new St.Widget({
+      style_class: 'EmojisItemStyle',
+      opacity: 0,
+      reactive: false,
+      can_focus: false,
+    });
+    row._gridLayout.attach(placeholder, col, 0, 1, 1);
+  }
+}
+
 class EmojiCategoryData {
   constructor(tab, emojis, onActivate, scrollView) {
     this.tab = tab;
@@ -87,25 +101,29 @@ class EmojiCategoryData {
     this._scrollView = scrollView;
     this._rows = [];
     this._buttons = [];
-    this._gridLayouts = [];
     this._built = false;
   }
 
   build() {
     if (this._built) return;
     this._built = true;
+    let row = null;
+    let gridLayout = null;
     for (let i = 0; i < this.emojis.length; i++) {
       const col = i % EMOJIS_PER_ROW;
-      const rowIdx = Math.floor(i / EMOJIS_PER_ROW);
-      if (i % EMOJIS_PER_ROW === 0) {
-        const row = makeRowContainer();
+      if (col === 0) {
+        row = makeRowContainer();
+        gridLayout = row._gridLayout;
         this._rows.push(row);
-        this._gridLayouts.push(row._gridLayout);
       }
       const { char, name } = this.emojis[i];
       const btn = makeEmojiButton(char, name, this._onActivate, this._scrollView);
-      this._gridLayouts[this._gridLayouts.length - 1].attach(btn, col, rowIdx, 1, 1);
+      gridLayout.attach(btn, col, 0, 1, 1);
       this._buttons.push(btn);
+    }
+    if (row) {
+      const used = this.emojis.length % EMOJIS_PER_ROW || EMOJIS_PER_ROW;
+      padRowContainer(row, used);
     }
   }
 
@@ -123,7 +141,6 @@ class EmojiCategoryData {
       row.destroy();
     }
     this._rows = [];
-    this._gridLayouts = [];
     this._buttons = [];
     this._built = false;
   }
@@ -377,7 +394,6 @@ const EmojiPickerMenu = GObject.registerClass(
       const onActivate = (e) => this._selectEmoji(e);
       let row = null;
       let gridLayout = null;
-      let rowIdx = 0;
       let col = 0;
       for (let i = 0; i < emojis.length; i++) {
         if (i % EMOJIS_PER_ROW === 0) {
@@ -385,17 +401,16 @@ const EmojiPickerMenu = GObject.registerClass(
           gridLayout = row._gridLayout;
           this._bodyBox.add_child(row);
           this._searchRows.push(row);
-          rowIdx = 0;
           col = 0;
         }
         const btn = makeEmojiButton(emojis[i].char, emojis[i].name, onActivate, this._bodyScroll);
-        gridLayout.attach(btn, col, rowIdx, 1, 1);
+        gridLayout.attach(btn, col, 0, 1, 1);
         col++;
-        if (col === EMOJIS_PER_ROW) {
-          col = 0;
-          rowIdx++;
-        }
         this._searchButtons.push(btn);
+      }
+      if (row) {
+        const used = emojis.length % EMOJIS_PER_ROW || EMOJIS_PER_ROW;
+        padRowContainer(row, used);
       }
     }
 
