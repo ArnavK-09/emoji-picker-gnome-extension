@@ -14,7 +14,10 @@ let rows;
 try {
   rows = execFileSync(
     "sqlite3",
-    [sqlite, "SELECT unicode, description, skin_tone, emoji_group FROM emojis;"],
+    [
+      sqlite,
+      "SELECT unicode, description, skin_tone, emoji_group FROM emojis;",
+    ],
     { encoding: "utf8" },
   )
     .split("\n")
@@ -25,7 +28,9 @@ try {
     });
 } catch (e) {
   console.error(`Emoji database not found: ${sqlite}`);
-  console.error("Set EMOJI_DB to the path of emoji-copy@felipeftn/data/emojis.db");
+  console.error(
+    "Set EMOJI_DB to the path of emoji-copy@felipeftn/data/emojis.db",
+  );
   process.exit(1);
 }
 

@@ -368,43 +368,46 @@ const EmojiPickerMenu = GObject.registerClass(
       });
       this._signalConnections.push({
         actor: this._searchEntry.clutter_text,
-        id: this._searchEntry.clutter_text.connect("key-press-event", (_a, event) => {
-          const sym = event.get_key_symbol();
-          if (
-            sym === Clutter.KEY_Down ||
-            sym === Clutter.KEY_Return ||
-            sym === Clutter.KEY_KP_Enter
-          ) {
-            const first = this._firstVisibleResult();
-            if (first) {
-              global.stage.set_key_focus(first);
+        id: this._searchEntry.clutter_text.connect(
+          "key-press-event",
+          (_a, event) => {
+            const sym = event.get_key_symbol();
+            if (
+              sym === Clutter.KEY_Down ||
+              sym === Clutter.KEY_Return ||
+              sym === Clutter.KEY_KP_Enter
+            ) {
+              const first = this._firstVisibleResult();
+              if (first) {
+                global.stage.set_key_focus(first);
+                return Clutter.EVENT_STOP;
+              }
+              return Clutter.EVENT_PROPAGATE;
+            }
+            if (sym === Clutter.KEY_Up) {
+              const tabIds = TABS.map((t) => t.id);
+              const activeTabId = this._activeTab;
+              const startIdx =
+                activeTabId && tabIds.includes(activeTabId)
+                  ? tabIds.indexOf(activeTabId)
+                  : 0;
+              this._focusTab(tabIds[startIdx]);
+              return Clutter.EVENT_STOP;
+            }
+            if (sym === Clutter.KEY_Tab) {
+              const first = this._firstVisibleResult();
+              if (first) {
+                global.stage.set_key_focus(first);
+                return Clutter.EVENT_STOP;
+              }
+            }
+            if (sym === Clutter.KEY_ISO_Left_Tab) {
+              this._focusTab(TABS[0].id);
               return Clutter.EVENT_STOP;
             }
             return Clutter.EVENT_PROPAGATE;
-          }
-          if (sym === Clutter.KEY_Up) {
-            const tabIds = TABS.map((t) => t.id);
-            const activeTabId = this._activeTab;
-            const startIdx =
-              activeTabId && tabIds.includes(activeTabId)
-                ? tabIds.indexOf(activeTabId)
-                : 0;
-            this._focusTab(tabIds[startIdx]);
-            return Clutter.EVENT_STOP;
-          }
-          if (sym === Clutter.KEY_Tab) {
-            const first = this._firstVisibleResult();
-            if (first) {
-              global.stage.set_key_focus(first);
-              return Clutter.EVENT_STOP;
-            }
-          }
-          if (sym === Clutter.KEY_ISO_Left_Tab) {
-            this._focusTab(TABS[0].id);
-            return Clutter.EVENT_STOP;
-          }
-          return Clutter.EVENT_PROPAGATE;
-        }),
+          },
+        ),
       });
       const searchBox = new St.BoxLayout({
         style_class: "emoji-search-row",
@@ -461,6 +464,7 @@ const EmojiPickerMenu = GObject.registerClass(
         this._disconnectStageKey();
         return;
       }
+      this._openTab("recent");
       this._connectStageKey();
       if (this._focusTimer) {
         GLib.source_remove(this._focusTimer);

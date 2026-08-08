@@ -29,8 +29,14 @@
   background-color: rgba(255, 255, 255, 0.08);
 }
 
-.emoji-categories-header StButton:checked {
+.emoji-categories-header StButton:checked,
+.emoji-categories-header StButton:focus {
   background-color: rgba(99, 156, 255, 0.32);
+}
+
+.emoji-categories-header StButton:checked:hover,
+.emoji-categories-header StButton:focus:hover {
+  background-color: rgba(99, 156, 255, 0.42);
 }
 
 .emoji-categories-header StIcon {
