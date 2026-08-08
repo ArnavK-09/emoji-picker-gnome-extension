@@ -7,7 +7,7 @@ import * as AnimationUtils from "resource:///org/gnome/shell/misc/animationUtils
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 
-import { CATEGORIES, EMOJI_BY_CHAR, applySkinTone } from "./emojiData.js";
+import { CATEGORIES, EMOJI_BY_CHAR, ALL_EMOJIS, applySkinTone } from "./emojiData.js";
 import { Clipboard } from "./clipboard.js";
 import { RecentStore } from "./recents.js";
 import { SETTING } from "./constants.js";
@@ -33,6 +33,66 @@ const EMOJIS_PER_ROW = 9;
 const POPUP_WIDTH = 324;
 const SEARCH_FOCUS_DELAY_MS = 20;
 const KEYBIND_DEBOUNCE_MS = 600;
+const SEARCH_DEBOUNCE_MS = 30;
+
+function buildSearchIndex(entries) {
+  const byToken = new Map();
+  const tokensPerEntry = new Array(entries.length);
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const tokens = [];
+    const name = (e.name || "").toLowerCase();
+    if (name) tokens.push(name);
+    const kws = e.keywords || [];
+    for (const k of kws) {
+      const kl = k.toLowerCase();
+      if (kl && kl !== name) tokens.push(kl);
+    }
+    tokensPerEntry[i] = tokens;
+    for (const t of tokens) {
+      let bucket = byToken.get(t);
+      if (!bucket) {
+        bucket = [];
+        byToken.set(t, bucket);
+      }
+      bucket.push(i);
+    }
+  }
+  return { byToken, tokensPerEntry, entries };
+}
+
+const SEARCH_INDEX = buildSearchIndex(ALL_EMOJIS);
+
+function searchIndex(query, limit) {
+  const q = (query || "").toLowerCase().trim();
+  if (q === "") return [];
+  const { byToken, tokensPerEntry, entries } = SEARCH_INDEX;
+  const seen = new Set();
+  const result = [];
+  for (const [token, idxs] of byToken) {
+    if (!token.includes(q)) continue;
+    for (const idx of idxs) {
+      if (seen.has(idx)) continue;
+      seen.add(idx);
+      result.push(entries[idx]);
+      if (limit && result.length >= limit) return result;
+    }
+  }
+  if (result.length > 0) return result;
+  const tokens = [...byToken.keys()];
+  tokens.sort((a, b) => a.length - b.length);
+  for (const t of tokens) {
+    if (t.includes(q) && t.startsWith(q)) {
+      for (const idx of byToken.get(t)) {
+        if (seen.has(idx)) continue;
+        seen.add(idx);
+        result.push(entries[idx]);
+        if (limit && result.length >= limit) return result;
+      }
+    }
+  }
+  return result;
+}
 
 function isPrintableKey(event) {
   const sym = event.get_key_symbol();
@@ -235,6 +295,7 @@ const EmojiPickerMenu = GObject.registerClass(
         .connect("text-changed", () =>
           this._onSearchChanged(this._searchEntry.get_text()),
         );
+      this._searchDebounceId = 0;
       this._searchEntry.clutter_text.connect("key-press-event", (_a, event) => {
         const sym = event.get_key_symbol();
         if (
@@ -361,50 +422,61 @@ const EmojiPickerMenu = GObject.registerClass(
 
     _onSearchChanged(text) {
       const query = (text || "").toLowerCase().trim();
+      if (this._searchDebounceId) {
+        GLib.source_remove(this._searchDebounceId);
+        this._searchDebounceId = 0;
+      }
       if (query === "") {
         if (this._activeTab) this._showTabContent(this._activeTab);
         return;
       }
-      this._highlightTab(null);
-      this._setSearchHighlight(query);
+      this._searchDebounceId = GLib.timeout_add(
+        GLib.PRIORITY_DEFAULT,
+        SEARCH_DEBOUNCE_MS,
+        () => {
+          this._searchDebounceId = 0;
+          if (!this.menu.isOpen) return GLib.SOURCE_REMOVE;
+          this._highlightTab(null);
+          this._setSearchHighlight(query);
+          return GLib.SOURCE_REMOVE;
+        },
+      );
     }
 
     _setSearchHighlight(query) {
       query = (query || "").toLowerCase().trim();
-      this._clearBody();
 
       for (const cat of this._categoryOrder) {
         if (!cat._built) cat.build();
-        for (const btn of cat.buttons()) btn.visible = true;
+        for (const row of cat.rows()) row.visible = false;
       }
       if (this._recentsCategory._built) {
-        for (const btn of this._recentsCategory.buttons()) btn.visible = true;
+        for (const row of this._recentsCategory.rows()) row.visible = false;
       }
 
-      const seen = new Set();
-      const matches = [];
-      for (const e of this._recentsCategory.emojis) {
-        if (this._buttonMatches(e, query) && !seen.has(e.char)) {
-          seen.add(e.char);
-          matches.push(e);
-        }
-      }
-      for (const cat of this._categoryOrder) {
-        for (const e of cat.emojis) {
-          if (seen.has(e.char)) continue;
-          if (this._buttonMatches(e, query)) {
-            seen.add(e.char);
-            matches.push(e);
-          }
-        }
-      }
-
-      this._renderSearchGrid(matches);
-    }
-
-    _renderSearchGrid(emojis) {
       this._teardownSearchRows();
-      if (emojis.length === 0) {
+      this._clearBody();
+
+      const matches = searchIndex(query, 500);
+
+      const recentSet = new Set();
+      for (const e of this._recentsCategory.emojis) recentSet.add(e.char);
+      const ordered = [];
+      const seen = new Set();
+      for (const m of matches) {
+        if (!seen.has(m.char)) {
+          seen.add(m.char);
+          ordered.push(m);
+        }
+      }
+      ordered.sort((a, b) => {
+        const ra = recentSet.has(a.char) ? 0 : 1;
+        const rb = recentSet.has(b.char) ? 0 : 1;
+        if (ra !== rb) return ra - rb;
+        return a.char.localeCompare(b.char);
+      });
+
+      if (ordered.length === 0) {
         const empty = new St.Label({
           text: "No matches",
           style_class: "emoji-empty",
@@ -413,6 +485,13 @@ const EmojiPickerMenu = GObject.registerClass(
         this._bodyBox.add_child(empty);
         return;
       }
+
+      this._renderSearchGrid(ordered);
+    }
+
+    _renderSearchGrid(emojis) {
+      this._teardownSearchRows();
+      if (emojis.length === 0) return;
       const onActivate = (e) => this._selectEmoji(e);
       let row = null;
       let gridLayout = null;
@@ -550,7 +629,12 @@ const EmojiPickerMenu = GObject.registerClass(
     }
 
     _showTabContent(id) {
+      this._teardownSearchRows();
       this._clearBody();
+      for (const cat of this._categoryOrder) {
+        for (const row of cat.rows()) row.visible = true;
+      }
+      for (const row of this._recentsCategory.rows()) row.visible = true;
       let cat;
       if (id === "recent") {
         this._refreshRecents();
