@@ -1,4 +1,4 @@
-<h1 align="center">👆 Cursor-anchored emoji picker for GNOME Shell 👆</h1>
+<h1 align="center">👆 Cursor-anchored emoji picker 👆</h1>
 
 <p align="center">
     <img alt="screenshot" src="./screenshot.png" />
