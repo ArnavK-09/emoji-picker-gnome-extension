@@ -178,7 +178,7 @@ const EmojiPickerMenu = GObject.registerClass(
 
       const box = this.menu.box;
       box.add_style_class_name('emoji-picker-menu');
-      box.spacing = 2;
+      box.spacing = 4;
 
       this._headerBox = new St.BoxLayout({
         style_class: 'emoji-categories-header',
@@ -278,9 +278,11 @@ const EmojiPickerMenu = GObject.registerClass(
         this._teardownSearchRows();
         this._clearBody();
         this._showTabContent(this._activeTab || 'recent');
+        this._cursorAnchor.visible = false;
         this._disconnectStageKey();
         return;
       }
+      this._cursorAnchor.visible = true;
       this._connectStageKey();
       if (this._focusTimer) {
         GLib.source_remove(this._focusTimer);
@@ -577,11 +579,7 @@ const EmojiPickerMenu = GObject.registerClass(
       this._cursorAnchor.set_position(Math.round(cx), Math.round(cy));
       this._cursorAnchor.visible = true;
       this.menu.sourceActor = this._cursorAnchor;
-      this._cursorAnchor.set_size(1, 1);
       this.menu.open(true);
-      if (this._cursorAnchor.get_parent()) {
-        this._cursorAnchor.get_parent().set_child_above_sibling(this._cursorAnchor, null);
-      }
     }
 
     destroy() {

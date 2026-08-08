@@ -3,7 +3,7 @@ import { SKIN_TONE_MODIFIER } from './constants.js';
 export const CATEGORIES = [
   {
     id: "smileys",
-    icon: "emoji-people-symbolic",
+    icon: "face-smile-symbolic",
     label: "Smileys & Emotion",
     emojis: [
       { c: "❤️", n: "red heart", k: "red heart" },
@@ -181,7 +181,7 @@ export const CATEGORIES = [
   },
   {
     id: "people",
-    icon: "emoji-body-symbolic",
+    icon: "emoji-people-symbolic",
     label: "People & Body",
     emojis: [
       { c: "🫶", n: "heart hands", k: "heart hands" },
