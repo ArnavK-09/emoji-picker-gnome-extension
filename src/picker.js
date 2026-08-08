@@ -1,20 +1,32 @@
-import Clutter from 'gi://Clutter';
-import GLib from 'gi://GLib';
-import GObject from 'gi://GObject';
-import St from 'gi://St';
+import Clutter from "gi://Clutter";
+import GLib from "gi://GLib";
+import GObject from "gi://GObject";
+import St from "gi://St";
 
-import * as AnimationUtils from 'resource:///org/gnome/shell/misc/animationUtils.js';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as AnimationUtils from "resource:///org/gnome/shell/misc/animationUtils.js";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
+import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 
-import { CATEGORIES, EMOJI_BY_CHAR, applySkinTone } from './emojiData.js';
-import { Clipboard } from './clipboard.js';
-import { RecentStore } from './recents.js';
-import { SETTING } from './constants.js';
+import { CATEGORIES, EMOJI_BY_CHAR, applySkinTone } from "./emojiData.js";
+import { Clipboard } from "./clipboard.js";
+import { RecentStore } from "./recents.js";
+import { SETTING } from "./constants.js";
 
 const TABS = [
-  { id: 'recent', icon: 'document-open-recent-symbolic', label: 'Recent', a11yLabel: 'Recently used emojis', alias: 'recents' },
-  ...CATEGORIES.map((c) => ({ id: c.id, icon: c.icon, label: c.label, a11yLabel: c.label, alias: c.id })),
+  {
+    id: "recent",
+    icon: "document-open-recent-symbolic",
+    label: "Recent",
+    a11yLabel: "Recently used emojis",
+    alias: "recents",
+  },
+  ...CATEGORIES.map((c) => ({
+    id: c.id,
+    icon: c.icon,
+    label: c.label,
+    a11yLabel: c.label,
+    alias: c.id,
+  })),
 ];
 
 const EMOJIS_PER_ROW = 9;
@@ -40,7 +52,7 @@ function isPrintableKey(event) {
 
 function makeEmojiButton(char, name, onActivate, scrollView) {
   const btn = new St.Button({
-    style_class: 'EmojisItemStyle',
+    style_class: "EmojisItemStyle",
     can_focus: true,
     label: char,
     x_expand: false,
@@ -49,13 +61,13 @@ function makeEmojiButton(char, name, onActivate, scrollView) {
     y_align: Clutter.ActorAlign.CENTER,
   });
   btn._emoji = { char, name };
-  btn.connect('clicked', () => onActivate(btn._emoji));
-  btn.connect('key-focus-in', () => {
+  btn.connect("clicked", () => onActivate(btn._emoji));
+  btn.connect("key-focus-in", () => {
     if (scrollView) {
       AnimationUtils.ensureActorVisibleInScrollView(scrollView, btn);
     }
   });
-  btn.connect('key-press-event', (_a, event) => {
+  btn.connect("key-press-event", (_a, event) => {
     const sym = event.get_key_symbol();
     if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
       onActivate(btn._emoji);
@@ -68,7 +80,7 @@ function makeEmojiButton(char, name, onActivate, scrollView) {
 
 function makeRowContainer() {
   const row = new St.Widget({
-    style_class: 'EmojisRow',
+    style_class: "EmojisRow",
     layout_manager: new Clutter.GridLayout({
       orientation: Clutter.Orientation.HORIZONTAL,
       column_homogeneous: true,
@@ -84,7 +96,7 @@ function makeRowContainer() {
 function padRowContainer(row, usedColumns) {
   for (let col = usedColumns; col < EMOJIS_PER_ROW; col++) {
     const placeholder = new St.Widget({
-      style_class: 'EmojisItemStyle',
+      style_class: "EmojisItemStyle",
       opacity: 0,
       reactive: false,
       can_focus: false,
@@ -117,7 +129,12 @@ class EmojiCategoryData {
         this._rows.push(row);
       }
       const { char, name } = this.emojis[i];
-      const btn = makeEmojiButton(char, name, this._onActivate, this._scrollView);
+      const btn = makeEmojiButton(
+        char,
+        name,
+        this._onActivate,
+        this._scrollView,
+      );
       gridLayout.attach(btn, col, 0, 1, 1);
       this._buttons.push(btn);
     }
@@ -154,10 +171,10 @@ class EmojiCategoryData {
 }
 
 const EmojiPickerMenu = GObject.registerClass(
-  { GTypeName: 'EmojiPickerMenu' },
+  { GTypeName: "EmojiPickerMenu" },
   class EmojiPickerMenu extends PanelMenu.Button {
     _init(extension) {
-      super._init(0.0, 'Emoji Picker', false);
+      super._init(0.0, "Emoji Picker", false);
       this.visible = false;
       this.set_size(0, 0);
 
@@ -177,11 +194,11 @@ const EmojiPickerMenu = GObject.registerClass(
       this._categoryOrder = [];
 
       const box = this.menu.box;
-      box.add_style_class_name('emoji-picker-menu');
-      box.spacing = 4;
+      box.add_style_class_name("emoji-picker-menu");
+      box.spacing = 0;
 
       this._headerBox = new St.BoxLayout({
-        style_class: 'emoji-categories-header',
+        style_class: "emoji-categories-header",
         x_expand: true,
         y_expand: false,
       });
@@ -192,31 +209,33 @@ const EmojiPickerMenu = GObject.registerClass(
           can_focus: true,
           track_hover: true,
           toggle_mode: true,
-          style_class: 'EmojisCategory',
+          style_class: "EmojisCategory",
           accessible_name: tab.a11yLabel || tab.label,
           child: new St.Icon({ icon_name: tab.icon, icon_size: 14 }),
           x_expand: true,
           x_align: Clutter.ActorAlign.CENTER,
         });
-        btn.connect('clicked', () => this._activateTab(tab.id));
+        btn.connect("clicked", () => this._activateTab(tab.id));
         this._tabButtons.set(tab.id, btn);
         this._headerBox.add_child(btn);
       }
       box.add_child(this._headerBox);
 
       this._searchEntry = new St.Entry({
-        name: 'searchEntry',
-        style_class: 'search-entry emoji-search-entry',
+        name: "searchEntry",
+        style_class: "search-entry emoji-search-entry",
         can_focus: true,
-        hint_text: 'Search emojis...',
+        hint_text: "Search emojis...",
         track_hover: true,
         x_expand: true,
-        primary_icon: new St.Icon({ icon_name: 'edit-find-symbolic' }),
+        primary_icon: new St.Icon({ icon_name: "edit-find-symbolic" }),
       });
-      this._searchEntry.get_clutter_text().connect('text-changed', () =>
-        this._onSearchChanged(this._searchEntry.get_text()),
-      );
-      this._searchEntry.clutter_text.connect('key-press-event', (_a, event) => {
+      this._searchEntry
+        .get_clutter_text()
+        .connect("text-changed", () =>
+          this._onSearchChanged(this._searchEntry.get_text()),
+        );
+      this._searchEntry.clutter_text.connect("key-press-event", (_a, event) => {
         const sym = event.get_key_symbol();
         if (
           sym === Clutter.KEY_Down ||
@@ -232,7 +251,7 @@ const EmojiPickerMenu = GObject.registerClass(
         return Clutter.EVENT_PROPAGATE;
       });
       const searchBox = new St.BoxLayout({
-        style_class: 'emoji-search-row',
+        style_class: "emoji-search-row",
         x_expand: true,
         y_expand: false,
       });
@@ -240,7 +259,7 @@ const EmojiPickerMenu = GObject.registerClass(
       box.add_child(searchBox);
 
       this._bodyScroll = new St.ScrollView({
-        style_class: 'emoji-body-scroll',
+        style_class: "emoji-body-scroll",
         overlay_scrollbars: false,
         hscrollbar_policy: St.PolicyType.NEVER,
         vscrollbar_policy: St.PolicyType.AUTOMATIC,
@@ -248,7 +267,7 @@ const EmojiPickerMenu = GObject.registerClass(
         y_expand: true,
       });
       this._bodyBox = new St.BoxLayout({
-        style_class: 'emoji-body',
+        style_class: "emoji-body",
         orientation: Clutter.Orientation.VERTICAL,
         x_expand: true,
         y_expand: true,
@@ -265,19 +284,21 @@ const EmojiPickerMenu = GObject.registerClass(
       this._stageKeyId = 0;
       this._focusTimer = 0;
 
-      this._openTab(this._settings.get_string(SETTING.DEFAULT_CATEGORY) || 'recent');
+      this._openTab(
+        this._settings.get_string(SETTING.DEFAULT_CATEGORY) || "recent",
+      );
 
-      this.menu.connect('open-state-changed', (_m, open) =>
+      this.menu.connect("open-state-changed", (_m, open) =>
         this._onOpenChanged(open),
       );
     }
 
     _onOpenChanged(open) {
       if (!open) {
-        this._searchEntry.set_text('');
+        this._searchEntry.set_text("");
         this._teardownSearchRows();
         this._clearBody();
-        this._showTabContent(this._activeTab || 'recent');
+        this._showTabContent(this._activeTab || "recent");
         this._disconnectStageKey();
         return;
       }
@@ -286,20 +307,23 @@ const EmojiPickerMenu = GObject.registerClass(
         GLib.source_remove(this._focusTimer);
         this._focusTimer = 0;
       }
-      this._focusTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SEARCH_FOCUS_DELAY_MS, () => {
-        this._focusTimer = 0;
-        if (this.menu.isOpen) {
-          global.stage.set_key_focus(this._searchEntry);
-        }
-        return GLib.SOURCE_REMOVE;
-      });
+      this._focusTimer = GLib.timeout_add(
+        GLib.PRIORITY_DEFAULT,
+        SEARCH_FOCUS_DELAY_MS,
+        () => {
+          this._focusTimer = 0;
+          if (this.menu.isOpen) {
+            global.stage.set_key_focus(this._searchEntry);
+          }
+          return GLib.SOURCE_REMOVE;
+        },
+      );
     }
 
     _connectStageKey() {
       if (this._stageKeyId) return;
-      this._stageKeyId = global.stage.connect(
-        'key-press-event',
-        (_s, event) => this._onStageKey(event),
+      this._stageKeyId = global.stage.connect("key-press-event", (_s, event) =>
+        this._onStageKey(event),
       );
     }
     _disconnectStageKey() {
@@ -336,8 +360,8 @@ const EmojiPickerMenu = GObject.registerClass(
     }
 
     _onSearchChanged(text) {
-      const query = (text || '').toLowerCase().trim();
-      if (query === '') {
+      const query = (text || "").toLowerCase().trim();
+      if (query === "") {
         if (this._activeTab) this._showTabContent(this._activeTab);
         return;
       }
@@ -346,7 +370,7 @@ const EmojiPickerMenu = GObject.registerClass(
     }
 
     _setSearchHighlight(query) {
-      query = (query || '').toLowerCase().trim();
+      query = (query || "").toLowerCase().trim();
       this._clearBody();
 
       for (const cat of this._categoryOrder) {
@@ -382,8 +406,8 @@ const EmojiPickerMenu = GObject.registerClass(
       this._teardownSearchRows();
       if (emojis.length === 0) {
         const empty = new St.Label({
-          text: 'No matches',
-          style_class: 'emoji-empty',
+          text: "No matches",
+          style_class: "emoji-empty",
           x_align: Clutter.ActorAlign.CENTER,
         });
         this._bodyBox.add_child(empty);
@@ -401,7 +425,12 @@ const EmojiPickerMenu = GObject.registerClass(
           this._searchRows.push(row);
           col = 0;
         }
-        const btn = makeEmojiButton(emojis[i].char, emojis[i].name, onActivate, this._bodyScroll);
+        const btn = makeEmojiButton(
+          emojis[i].char,
+          emojis[i].name,
+          onActivate,
+          this._bodyScroll,
+        );
         gridLayout.attach(btn, col, 0, 1, 1);
         col++;
         this._searchButtons.push(btn);
@@ -424,7 +453,7 @@ const EmojiPickerMenu = GObject.registerClass(
     _firstVisibleResult() {
       const walk = (actor) => {
         if (actor.visible && actor.can_focus && actor._emoji) return actor;
-        if (typeof actor.get_children === 'function') {
+        if (typeof actor.get_children === "function") {
           for (const child of actor.get_children()) {
             const hit = walk(child);
             if (hit) return hit;
@@ -454,14 +483,17 @@ const EmojiPickerMenu = GObject.registerClass(
 
     _buildAllCategories() {
       for (const tab of TABS) {
-        if (tab.id === 'recent') continue;
+        if (tab.id === "recent") continue;
         const category = CATEGORIES.find((c) => c.id === tab.id);
         if (!category) continue;
         const emojis = category.emojis
           .map((e) => EMOJI_BY_CHAR.get(e.c))
           .filter((e) => !!e);
-        const cat = new EmojiCategoryData(tab, emojis, (emoji) =>
-          this._selectEmoji(emoji), this._bodyScroll,
+        const cat = new EmojiCategoryData(
+          tab,
+          emojis,
+          (emoji) => this._selectEmoji(emoji),
+          this._bodyScroll,
         );
         this._categories.set(tab.id, cat);
         this._categoryOrder.push(cat);
@@ -473,9 +505,12 @@ const EmojiPickerMenu = GObject.registerClass(
       const emojis = recents
         .map((char) => EMOJI_BY_CHAR.get(char))
         .filter((e) => !!e);
-      const tab = { id: 'recent', label: 'Recently used' };
-      const cat = new EmojiCategoryData(tab, emojis, (emoji) =>
-        this._selectEmoji(emoji), this._bodyScroll,
+      const tab = { id: "recent", label: "Recently used" };
+      const cat = new EmojiCategoryData(
+        tab,
+        emojis,
+        (emoji) => this._selectEmoji(emoji),
+        this._bodyScroll,
       );
       cat.build();
       return cat;
@@ -492,16 +527,16 @@ const EmojiPickerMenu = GObject.registerClass(
     }
 
     _activateTab(id) {
-      if (this._searchEntry.get_text() !== '') {
-        this._searchEntry.set_text('');
+      if (this._searchEntry.get_text() !== "") {
+        this._searchEntry.set_text("");
       }
       this._openTab(id);
     }
 
     _openTab(id) {
       let resolved = id;
-      if (resolved === 'recent' && this._recents.list().length === 0) {
-        resolved = 'smileys';
+      if (resolved === "recent" && this._recents.list().length === 0) {
+        resolved = "smileys";
       }
       this._activeTab = resolved;
       this._highlightTab(resolved);
@@ -517,7 +552,7 @@ const EmojiPickerMenu = GObject.registerClass(
     _showTabContent(id) {
       this._clearBody();
       let cat;
-      if (id === 'recent') {
+      if (id === "recent") {
         this._refreshRecents();
         cat = this._recentsCategory;
       } else {
@@ -540,7 +575,7 @@ const EmojiPickerMenu = GObject.registerClass(
       try {
         this._clipboard.copy(text);
       } catch (e) {
-        console.error('Emoji Picker: clipboard copy failed', e);
+        console.error("Emoji Picker: clipboard copy failed", e);
       }
       this._recents.add(char);
       if (this._settings.get_boolean(SETTING.PASTE_ON_SELECT)) {
@@ -566,13 +601,19 @@ const EmojiPickerMenu = GObject.registerClass(
       if (cx + w > monitor.x + monitor.width - margin) {
         cx = px - w - margin;
       }
-      cx = Math.max(monitor.x + margin, Math.min(cx, monitor.x + monitor.width - w - margin));
+      cx = Math.max(
+        monitor.x + margin,
+        Math.min(cx, monitor.x + monitor.width - w - margin),
+      );
 
       let cy = py + margin;
       if (cy + h > monitor.y + monitor.height - margin) {
         cy = py - h - margin;
       }
-      cy = Math.max(monitor.y + margin, Math.min(cy, monitor.y + monitor.height - h - margin));
+      cy = Math.max(
+        monitor.y + margin,
+        Math.min(cy, monitor.y + monitor.height - h - margin),
+      );
 
       this._cursorAnchor.set_position(Math.round(cx), Math.round(cy));
       this._cursorAnchor.visible = true;
@@ -580,7 +621,9 @@ const EmojiPickerMenu = GObject.registerClass(
       this._cursorAnchor.set_size(1, 1);
       this.menu.open(true);
       if (this._cursorAnchor.get_parent()) {
-        this._cursorAnchor.get_parent().set_child_above_sibling(this._cursorAnchor, null);
+        this._cursorAnchor
+          .get_parent()
+          .set_child_above_sibling(this._cursorAnchor, null);
       }
     }
 
@@ -606,12 +649,7 @@ const EmojiPickerMenu = GObject.registerClass(
 export class EmojiPicker {
   constructor(extension, settings) {
     this._menu = new EmojiPickerMenu(extension);
-    Main.panel.addToStatusArea(
-      'EmojiPicker',
-      this._menu,
-      0,
-      'right',
-    );
+    Main.panel.addToStatusArea("EmojiPicker", this._menu, 0, "right");
     this._menu.visible = false;
   }
 

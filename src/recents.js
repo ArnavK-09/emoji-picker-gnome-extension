@@ -1,4 +1,4 @@
-import { SETTING } from './constants.js';
+import { SETTING } from "./constants.js";
 
 export class RecentStore {
   constructor(settings) {
@@ -12,7 +12,10 @@ export class RecentStore {
   add(char) {
     const existing = this.list().filter((item) => item !== char);
     existing.unshift(char);
-    const capped = existing.slice(0, this._settings.get_int(SETTING.RECENT_COUNT));
+    const capped = existing.slice(
+      0,
+      this._settings.get_int(SETTING.RECENT_COUNT),
+    );
     this._settings.set_strv(SETTING.RECENTS, capped);
   }
 }

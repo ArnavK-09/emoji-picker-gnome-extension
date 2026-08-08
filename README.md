@@ -2,7 +2,7 @@
 <h2 align="center">Cursor-anchored emoji picker for GNOME Shell</h2>
 
 <p align="center">
-    <img alt="hero" src="https://emoji-route.vercel.app/svg/👆" />
+    <img alt="screenshot" src="./screenshot.png" />
 </p>
 
 > [!NOTE]
@@ -24,8 +24,8 @@
 ## 💻 Installation
 
 ```bash
-git clone https://github.com/ArnavK-09/emoji-picker-gnome-extension.git
-cd emoji-picker
+git clone https://github.com/ArnavK-09/emoji-picker-gnome-extension.git emoji-picker@ArnavK-09
+cd emoji-picker@ArnavK-09
 meson setup build --prefix=/usr/local
 meson compile -C build
 meson install -C build
@@ -36,7 +36,7 @@ meson install -C build
 ```bash
 # Symlink or copy into your user extensions directory
 mkdir -p ~/.local/share/gnome-shell/extensions
-ln -s "$(pwd)/emoji-picker@ArnavK-09" \
+ln -s "$(pwd)" \
       ~/.local/share/gnome-shell/extensions/emoji-picker@ArnavK-09
 
 # Enable (you may need to log out and back in first on Wayland)

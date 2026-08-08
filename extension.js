@@ -1,7 +1,7 @@
-import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
-import { EmojiPicker } from './src/picker.js';
-import { Keybindings } from './src/keybindings.js';
-import { SETTING } from './src/constants.js';
+import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import { EmojiPicker } from "./src/picker.js";
+import { Keybindings } from "./src/keybindings.js";
+import { SETTING } from "./src/constants.js";
 
 export default class EmojiPickerExtension extends Extension {
   enable() {
