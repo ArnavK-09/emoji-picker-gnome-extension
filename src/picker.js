@@ -37,8 +37,7 @@ const TABS = [
 const EMOJIS_PER_ROW = 9;
 const POPUP_WIDTH = 324;
 const SEARCH_FOCUS_DELAY_MS = 20;
-const KEYBIND_DEBOUNCE_MS = 600;
-const SEARCH_DEBOUNCE_MS = 30;
+const SEARCH_DEBOUNCE_MS = 80;
 
 function buildSearchIndex(entries) {
   const byToken = new Map();
@@ -63,15 +62,20 @@ function buildSearchIndex(entries) {
       bucket.push(i);
     }
   }
-  return { byToken, tokensPerEntry, entries };
+  const sortedTokens = [...byToken.keys()].sort((a, b) => a.length - b.length);
+  return { byToken, tokensPerEntry, entries, sortedTokens };
 }
 
-const SEARCH_INDEX = buildSearchIndex(ALL_EMOJIS);
+let _searchIndex = null;
+function getSearchIndex() {
+  if (!_searchIndex) _searchIndex = buildSearchIndex(ALL_EMOJIS);
+  return _searchIndex;
+}
 
 function searchIndex(query, limit) {
   const q = (query || "").toLowerCase().trim();
   if (q === "") return [];
-  const { byToken, tokensPerEntry, entries } = SEARCH_INDEX;
+  const { byToken, sortedTokens, entries } = getSearchIndex();
   const seen = new Set();
   const result = [];
   for (const [token, idxs] of byToken) {
@@ -84,10 +88,8 @@ function searchIndex(query, limit) {
     }
   }
   if (result.length > 0) return result;
-  const tokens = [...byToken.keys()];
-  tokens.sort((a, b) => a.length - b.length);
-  for (const t of tokens) {
-    if (t.includes(q) && t.startsWith(q)) {
+  for (const t of sortedTokens) {
+    if (t.startsWith(q)) {
       for (const idx of byToken.get(t)) {
         if (seen.has(idx)) continue;
         seen.add(idx);
@@ -239,6 +241,14 @@ class EmojiCategoryData {
     this._built = false;
   }
 
+  destroy() {
+    this.clear();
+    this.emojis = [];
+    this._onActivate = null;
+    this._onUpToSearch = null;
+    this._scrollView = null;
+  }
+
   rows() {
     return this._rows;
   }
@@ -258,6 +268,7 @@ const EmojiPickerMenu = GObject.registerClass(
       this._settings = extension.getSettings();
       this._clipboard = new Clipboard();
       this._recents = new RecentStore(this._settings);
+      this._signalConnections = [];
 
       this._cursorAnchor = new St.Widget({
         width: 1,
@@ -292,39 +303,45 @@ const EmojiPickerMenu = GObject.registerClass(
           x_expand: true,
           x_align: Clutter.ActorAlign.CENTER,
         });
-        btn.connect("clicked", () => this._activateTab(tab.id));
-        btn.connect("key-press-event", (_a, event) => {
-          const sym = event.get_key_symbol();
-          const tabIds = TABS.map((t) => t.id);
-          const idx = tabIds.indexOf(tab.id);
-          if (sym === Clutter.KEY_Up || sym === Clutter.KEY_Left) {
-            const prevId = tabIds[(idx - 1 + tabIds.length) % tabIds.length];
-            if (this._tabButtons.get(prevId)) {
-              this._focusTab(prevId);
+        this._signalConnections.push({
+          actor: btn,
+          id: btn.connect("clicked", () => this._activateTab(tab.id)),
+        });
+        this._signalConnections.push({
+          actor: btn,
+          id: btn.connect("key-press-event", (_a, event) => {
+            const sym = event.get_key_symbol();
+            const tabIds = TABS.map((t) => t.id);
+            const idx = tabIds.indexOf(tab.id);
+            if (sym === Clutter.KEY_Up || sym === Clutter.KEY_Left) {
+              const prevId = tabIds[(idx - 1 + tabIds.length) % tabIds.length];
+              if (this._tabButtons.get(prevId)) {
+                this._focusTab(prevId);
+                return Clutter.EVENT_STOP;
+              }
+            }
+            if (sym === Clutter.KEY_Right) {
+              const nextId = tabIds[(idx + 1) % tabIds.length];
+              if (this._tabButtons.get(nextId)) {
+                this._focusTab(nextId);
+                return Clutter.EVENT_STOP;
+              }
+            }
+            if (sym === Clutter.KEY_Down || sym === Clutter.KEY_Tab) {
+              this._focusSearchEntry();
               return Clutter.EVENT_STOP;
             }
-          }
-          if (sym === Clutter.KEY_Right) {
-            const nextId = tabIds[(idx + 1) % tabIds.length];
-            if (this._tabButtons.get(nextId)) {
-              this._focusTab(nextId);
+            if (sym === Clutter.KEY_ISO_Left_Tab) {
+              const last = this._lastVisibleResult();
+              if (last) {
+                global.stage.set_key_focus(last);
+                return Clutter.EVENT_STOP;
+              }
+              this._focusSearchEntry();
               return Clutter.EVENT_STOP;
             }
-          }
-          if (sym === Clutter.KEY_Down || sym === Clutter.KEY_Tab) {
-            this._focusSearchEntry();
-            return Clutter.EVENT_STOP;
-          }
-          if (sym === Clutter.KEY_ISO_Left_Tab) {
-            const last = this._lastVisibleResult();
-            if (last) {
-              global.stage.set_key_focus(last);
-              return Clutter.EVENT_STOP;
-            }
-            this._focusSearchEntry();
-            return Clutter.EVENT_STOP;
-          }
-          return Clutter.EVENT_PROPAGATE;
+            return Clutter.EVENT_PROPAGATE;
+          }),
         });
         this._tabButtons.set(tab.id, btn);
         this._headerBox.add_child(btn);
@@ -340,48 +357,54 @@ const EmojiPickerMenu = GObject.registerClass(
         x_expand: true,
         primary_icon: new St.Icon({ icon_name: "edit-find-symbolic" }),
       });
-      this._searchEntry
-        .get_clutter_text()
-        .connect("text-changed", () =>
-          this._onSearchChanged(this._searchEntry.get_text()),
-        );
       this._searchDebounceId = 0;
-      this._searchEntry.clutter_text.connect("key-press-event", (_a, event) => {
-        const sym = event.get_key_symbol();
-        if (
-          sym === Clutter.KEY_Down ||
-          sym === Clutter.KEY_Return ||
-          sym === Clutter.KEY_KP_Enter
-        ) {
-          const first = this._firstVisibleResult();
-          if (first) {
-            global.stage.set_key_focus(first);
+      this._signalConnections.push({
+        actor: this._searchEntry.get_clutter_text(),
+        id: this._searchEntry
+          .get_clutter_text()
+          .connect("text-changed", () =>
+            this._onSearchChanged(this._searchEntry.get_text()),
+          ),
+      });
+      this._signalConnections.push({
+        actor: this._searchEntry.clutter_text,
+        id: this._searchEntry.clutter_text.connect("key-press-event", (_a, event) => {
+          const sym = event.get_key_symbol();
+          if (
+            sym === Clutter.KEY_Down ||
+            sym === Clutter.KEY_Return ||
+            sym === Clutter.KEY_KP_Enter
+          ) {
+            const first = this._firstVisibleResult();
+            if (first) {
+              global.stage.set_key_focus(first);
+              return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+          }
+          if (sym === Clutter.KEY_Up) {
+            const tabIds = TABS.map((t) => t.id);
+            const activeTabId = this._activeTab;
+            const startIdx =
+              activeTabId && tabIds.includes(activeTabId)
+                ? tabIds.indexOf(activeTabId)
+                : 0;
+            this._focusTab(tabIds[startIdx]);
+            return Clutter.EVENT_STOP;
+          }
+          if (sym === Clutter.KEY_Tab) {
+            const first = this._firstVisibleResult();
+            if (first) {
+              global.stage.set_key_focus(first);
+              return Clutter.EVENT_STOP;
+            }
+          }
+          if (sym === Clutter.KEY_ISO_Left_Tab) {
+            this._focusTab(TABS[0].id);
             return Clutter.EVENT_STOP;
           }
           return Clutter.EVENT_PROPAGATE;
-        }
-        if (sym === Clutter.KEY_Up) {
-          const tabIds = TABS.map((t) => t.id);
-          const activeTabId = this._activeTab;
-          const startIdx =
-            activeTabId && tabIds.includes(activeTabId)
-              ? tabIds.indexOf(activeTabId)
-              : 0;
-          this._focusTab(tabIds[startIdx]);
-          return Clutter.EVENT_STOP;
-        }
-        if (sym === Clutter.KEY_Tab) {
-          const first = this._firstVisibleResult();
-          if (first) {
-            global.stage.set_key_focus(first);
-            return Clutter.EVENT_STOP;
-          }
-        }
-        if (sym === Clutter.KEY_ISO_Left_Tab) {
-          this._focusTab(TABS[0].id);
-          return Clutter.EVENT_STOP;
-        }
-        return Clutter.EVENT_PROPAGATE;
+        }),
       });
       const searchBox = new St.BoxLayout({
         style_class: "emoji-search-row",
@@ -421,9 +444,12 @@ const EmojiPickerMenu = GObject.registerClass(
         this._settings.get_string(SETTING.DEFAULT_CATEGORY) || "recent",
       );
 
-      this.menu.connect("open-state-changed", (_m, open) =>
-        this._onOpenChanged(open),
-      );
+      this._signalConnections.push({
+        actor: this.menu,
+        id: this.menu.connect("open-state-changed", (_m, open) =>
+          this._onOpenChanged(open),
+        ),
+      });
     }
 
     _onOpenChanged(open) {
@@ -661,17 +687,6 @@ const EmojiPickerMenu = GObject.registerClass(
       return last;
     }
 
-    _buttonMatches(emoji, query) {
-      if (!emoji) return false;
-      if (emoji.name && emoji.name.toLowerCase().includes(query)) return true;
-      if (emoji.keywords) {
-        for (const k of emoji.keywords) {
-          if (k && k.toLowerCase().includes(query)) return true;
-        }
-      }
-      return false;
-    }
-
     _clearBody() {
       for (const child of this._bodyBox.get_children()) {
         if (child.get_parent()) child.get_parent().remove_child(child);
@@ -779,7 +794,8 @@ const EmojiPickerMenu = GObject.registerClass(
       try {
         this._clipboard.copy(text);
       } catch (e) {
-        console.error("Emoji Picker: clipboard copy failed", e);
+        // Clipboard operations can fail transiently; keep going so the user
+        // still gets visual feedback and the menu closes.
       }
       this._recents.add(char);
       if (this._settings.get_boolean(SETTING.PASTE_ON_SELECT)) {
@@ -837,14 +853,39 @@ const EmojiPickerMenu = GObject.registerClass(
         GLib.source_remove(this._focusTimer);
         this._focusTimer = 0;
       }
+      if (this._searchDebounceId) {
+        GLib.source_remove(this._searchDebounceId);
+        this._searchDebounceId = 0;
+      }
+      for (const { actor, id } of this._signalConnections) {
+        if (actor && id) {
+          try {
+            actor.disconnect(id);
+          } catch (e) {
+            // Actor may already be destroyed during teardown.
+          }
+        }
+      }
+      this._signalConnections = [];
+      if (this._clipboard) {
+        this._clipboard.destroy();
+        this._clipboard = null;
+      }
       this._teardownSearchRows();
       if (this._cursorAnchor) {
         Main.uiGroup.remove_child(this._cursorAnchor);
         this._cursorAnchor.destroy();
         this._cursorAnchor = null;
       }
-      for (const cat of this._categoryOrder) cat.clear();
-      if (this._recentsCategory) this._recentsCategory.clear();
+      for (const cat of this._categoryOrder) cat.destroy();
+      if (this._recentsCategory) this._recentsCategory.destroy();
+      this._categories.clear();
+      this._categoryOrder = [];
+      this._recentsCategory = null;
+      this._tabButtons.clear();
+      this._tabButtons = null;
+      this._settings = null;
+      this._recents = null;
       super.destroy();
     }
   },
@@ -862,6 +903,9 @@ export class EmojiPicker {
   }
 
   destroy() {
+    if (Main.panel.statusArea["EmojiPicker"] === this._menu) {
+      delete Main.panel.statusArea["EmojiPicker"];
+    }
     if (this._menu) {
       this._menu.destroy();
       this._menu = null;

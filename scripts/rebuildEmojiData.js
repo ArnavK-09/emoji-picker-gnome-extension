@@ -7,19 +7,27 @@ import { dirname, join } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(here, "..", "..");
 const sqlite =
+  process.env.EMOJI_DB ||
   "/home/dopamide/Projects/emoji-picker/emoji-copy@felipeftn/data/emojis.db";
 
-const rows = execFileSync(
-  "sqlite3",
-  [sqlite, "SELECT unicode, description, skin_tone, emoji_group FROM emojis;"],
-  { encoding: "utf8" },
-)
-  .split("\n")
-  .filter(Boolean)
-  .map((line) => {
-    const [unicode, description, skin_tone, emoji_group] = line.split("|");
-    return { unicode, description, skin_tone, emoji_group };
-  });
+let rows;
+try {
+  rows = execFileSync(
+    "sqlite3",
+    [sqlite, "SELECT unicode, description, skin_tone, emoji_group FROM emojis;"],
+    { encoding: "utf8" },
+  )
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const [unicode, description, skin_tone, emoji_group] = line.split("|");
+      return { unicode, description, skin_tone, emoji_group };
+    });
+} catch (e) {
+  console.error(`Emoji database not found: ${sqlite}`);
+  console.error("Set EMOJI_DB to the path of emoji-copy@felipeftn/data/emojis.db");
+  process.exit(1);
+}
 
 const GROUP_TO_ID = {
   "Smileys & Emotion": "smileys",

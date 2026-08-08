@@ -1,0 +1,5 @@
+# Meson build directory
+build/
+
+# Compiled GSettings schemas (generated at install time)
+schemas/gschemas.compiled

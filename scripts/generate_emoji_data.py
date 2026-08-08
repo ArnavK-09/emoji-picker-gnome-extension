@@ -21,12 +21,13 @@ we collapse them so EMOJI_BY_CHAR has one entry per character.
 """
 
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
 
-DB = Path('/home/dopamide/Projects/emoji-picker/emoji-copy@felipeftn/data/emojis.db')
-OUT = Path('/home/dopamide/Projects/emoji-picker/emoji-picker@ArnavK-09/src/emojiData.js')
+DB = Path(os.environ.get("EMOJI_DB", "/home/dopamide/Projects/emoji-picker/emoji-copy@felipeftn/data/emojis.db"))
+OUT = Path(os.environ.get("EMOJI_OUT", Path(__file__).resolve().parent.parent / "src" / "emojiData.js"))
 
 CATEGORIES = [
     ('smileys',   'face-smile-symbolic',           'Smileys & Emotion'),
@@ -67,6 +68,10 @@ def js_str(s: str) -> str:
 
 
 def main():
+    if not DB.exists():
+        print(f"Emoji database not found: {DB}", file=sys.stderr)
+        print("Set EMOJI_DB to the path of emoji-copy@felipeftn/data/emojis.db", file=sys.stderr)
+        sys.exit(1)
     con = sqlite3.connect(DB)
     cur = con.cursor()
     # The DB has a base row plus 5 tone-variant rows per toneable emoji. We

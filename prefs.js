@@ -1,8 +1,9 @@
 import Adw from "gi://Adw";
 import Gdk from "gi://Gdk";
 import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import Gtk from "gi://Gtk";
-import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
+import { ExtensionPreferences } from "resource:///org/gnome/shell/extensions/prefs.js";
 import { CATEGORIES } from "./src/emojiData.js";
 import { SETTING } from "./src/constants.js";
 
@@ -23,6 +24,7 @@ export default class EmojiPickerPreferences extends ExtensionPreferences {
     page.add(builder.buildBehaviorGroup());
     window.add(page);
     window.set_default_size(560, 520);
+    window.connect("destroy", () => builder.destroy());
   }
 }
 
@@ -30,6 +32,38 @@ class PreferencesBuilder {
   constructor(settings, extensionDir) {
     this._settings = settings;
     this._extensionDir = extensionDir;
+    this._captureTimeoutId = 0;
+    this._captureController = null;
+    this._captureHandlerId = 0;
+    this._captureButton = null;
+  }
+
+  destroy() {
+    if (this._captureTimeoutId) {
+      GLib.source_remove(this._captureTimeoutId);
+      this._captureTimeoutId = 0;
+    }
+    this._endCapture();
+  }
+
+  _endCapture() {
+    if (this._captureController && this._captureHandlerId) {
+      try {
+        this._captureController.disconnect(this._captureHandlerId);
+      } catch (e) {
+        // controller may already be destroyed
+      }
+    }
+    if (this._captureController && this._captureButton) {
+      try {
+        this._captureButton.remove_controller(this._captureController);
+      } catch (e) {
+        // button may already be destroyed
+      }
+    }
+    this._captureController = null;
+    this._captureHandlerId = 0;
+    this._captureButton = null;
   }
 
   _createComboRow(title, settingKey, options) {
@@ -120,36 +154,36 @@ class PreferencesBuilder {
     };
 
     shortcutButton.connect("clicked", () => {
+      this.destroy();
       shortcutButton.set_label("Press keys…");
       shortcutButton.grab_focus();
 
       const controller = new Gtk.EventControllerKey();
       shortcutButton.add_controller(controller);
+      this._captureController = controller;
+      this._captureButton = shortcutButton;
 
-      let debounceTimeoutId = null;
       const handlerId = controller.connect(
         "key-pressed",
         (_c, keyval, keycode, mask) => {
           const cleanMask = mask & Gtk.accelerator_get_default_mod_mask();
 
-          if (cleanMask === 0 && keyval === Gdk.KEY_Escape) {
-            if (debounceTimeoutId) {
-              clearTimeout(debounceTimeoutId);
-              debounceTimeoutId = null;
+          const cancelCapture = () => {
+            if (this._captureTimeoutId) {
+              GLib.source_remove(this._captureTimeoutId);
+              this._captureTimeoutId = 0;
             }
-            controller.disconnect(handlerId);
-            shortcutButton.remove_controller(controller);
+            this._endCapture();
+          };
+
+          if (cleanMask === 0 && keyval === Gdk.KEY_Escape) {
+            cancelCapture();
             refreshShortcutLabel();
             return Gdk.EVENT_STOP;
           }
 
           if (cleanMask === 0 && keyval === Gdk.KEY_BackSpace) {
-            if (debounceTimeoutId) {
-              clearTimeout(debounceTimeoutId);
-              debounceTimeoutId = null;
-            }
-            controller.disconnect(handlerId);
-            shortcutButton.remove_controller(controller);
+            cancelCapture();
             this._settings.set_strv(SETTING.KEYBINDING, []);
             refreshShortcutLabel();
             return Gdk.EVENT_STOP;
@@ -162,18 +196,24 @@ class PreferencesBuilder {
           const accel = Gtk.accelerator_name(keyval, cleanMask);
           shortcutButton.set_label(accelToLabel(accel));
 
-          if (debounceTimeoutId) clearTimeout(debounceTimeoutId);
-          debounceTimeoutId = setTimeout(() => {
-            debounceTimeoutId = null;
-            controller.disconnect(handlerId);
-            shortcutButton.remove_controller(controller);
-            this._settings.set_strv(SETTING.KEYBINDING, [accel]);
-            refreshShortcutLabel();
-          }, 600);
+          if (this._captureTimeoutId)
+            GLib.source_remove(this._captureTimeoutId);
+          this._captureTimeoutId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT,
+            600,
+            () => {
+              this._captureTimeoutId = 0;
+              this._endCapture();
+              this._settings.set_strv(SETTING.KEYBINDING, [accel]);
+              refreshShortcutLabel();
+              return GLib.SOURCE_REMOVE;
+            },
+          );
 
           return Gdk.EVENT_STOP;
         },
       );
+      this._captureHandlerId = handlerId;
     });
 
     shortcutRow.add_suffix(shortcutButton);

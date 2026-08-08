@@ -1,9 +1,10 @@
 {
   "uuid": "emoji-picker@ArnavK-09",
   "name": "Emoji Picker",
-  "description": "Cursor-anchored emoji picker for GNOME Shell. Press the keyboard shortcut, type to search across ~1940 emojis, and pick. Auto-pastes into the focused field.",
+  "description": "Cursor-anchored emoji picker for GNOME Shell. Press the keyboard shortcut (default: Ctrl+K), type to search across ~1940 emojis, and pick. The selected emoji is copied to the clipboard and optionally pasted into the focused field.",
   "shell-version": ["50"],
   "url": "https://github.com/ArnavK-09/emoji-picker-gnome-extension",
+  "session-modes": ["user"],
   "gettext-domain": "emoji-picker",
   "settings-schema": "org.gnome.shell.extensions.emoji-picker"
 }
