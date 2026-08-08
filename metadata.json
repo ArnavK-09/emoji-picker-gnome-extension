@@ -3,7 +3,7 @@
   "name": "Emoji Picker",
   "description": "Cursor-anchored emoji picker for GNOME Shell. Press the keyboard shortcut, type to search across ~1940 emojis, and pick. Auto-pastes into the focused field.",
   "shell-version": ["50"],
-  "url": "https://github.com/ArnavK-09/emoji-picker",
+  "url": "https://github.com/ArnavK-09/emoji-picker-gnome-extension",
   "gettext-domain": "emoji-picker",
   "settings-schema": "org.gnome.shell.extensions.emoji-picker"
 }

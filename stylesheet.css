@@ -9,14 +9,14 @@
 }
 
 .emoji-categories-header {
-  padding: 4px 0 0 0;
+  padding: 0;
   spacing: 2px;
   background-color: transparent;
 }
 
 .emoji-categories-header StButton {
   border-radius: 8px;
-  padding: 4px 2px;
+  padding: 3px 2px;
   min-width: 26px;
   min-height: 26px;
   background-color: transparent;
@@ -36,13 +36,13 @@
 }
 
 .emoji-search-row {
-  padding: 4px 0 4px 0;
+  padding: 2px 0 0 0;
   background-color: transparent;
 }
 
 .emoji-search-row .search-entry {
   border-radius: 12px;
-  min-height: 28px;
+  min-height: 26px;
   width: 100%;
   box-sizing: border-box;
   background-color: rgba(255, 255, 255, 0.06);

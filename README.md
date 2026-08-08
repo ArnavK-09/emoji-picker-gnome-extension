@@ -1,8 +1,8 @@
-<h1 align="center">📝 emoji-picker 📝</h1>
+<h1 align="center">👆 emoji-picker 👆</h1>
 <h2 align="center">Cursor-anchored emoji picker for GNOME Shell</h2>
 
 <p align="center">
-    <img alt="hero" width="450" src="https://emoji-route.vercel.app/svg/📝" />
+    <img alt="hero" src="https://emoji-route.vercel.app/svg/👆" />
 </p>
 
 > [!NOTE]
@@ -10,8 +10,6 @@
 > A lightweight, performance-oriented emoji picker for GNOME Shell. Press the keyboard shortcut, type to search across ~1940 emojis, and pick. The selected emoji is copied to your clipboard and optionally pasted directly into the focused text field. No system tray icon — the popup appears right at your cursor and disappears when you click outside or press Escape.
 
 ## 🌟 Features
-
-> **emoji-picker** features intro:
 
 - **Cursor-anchored popup** — opens at the mouse pointer; no tray icon, no wasted panel space.
 - **Fast flat search** — type to filter across 1940+ emojis in one flat, deduplicated grid. The 9-column layout is filled edge-to-edge with no gaps.
@@ -25,12 +23,8 @@
 
 ## 💻 Installation
 
-> You can install **emoji-picker** from source in a few steps:
-
-###### from source (recommended)
-
 ```bash
-git clone https://github.com/ArnavK-09/emoji-picker.git
+git clone https://github.com/ArnavK-09/emoji-picker-gnome-extension.git
 cd emoji-picker
 meson setup build --prefix=/usr/local
 meson compile -C build
@@ -49,92 +43,15 @@ ln -s "$(pwd)/emoji-picker@ArnavK-09" \
 gnome-extensions enable emoji-picker@ArnavK-09
 ```
 
-###### from the GNOME Extensions website
-
-> Search for **Emoji Picker** by **ArnavK-09** in the [GNOME Extensions](https://extensions.gnome.org/) website and toggle it on.
-
-## 📷 Screenshots
-
-> Here's a working screenshot of **emoji-picker**
-
-
-| Popup at cursor | Search results |
-|-----------------|----------------|
-| ![Demo](https://github.com/ArnavK-09.png) | ![Demo](https://github.com/ArnavK-09.png) |
-
-
 ---
 
-
-## 💻 How it works
-
-> **emoji-picker** is built on the patterns used by the well-trodden `clipboard-gnome-extension-demo` and `emoji-copy@felipeftn` GNOME Shell extensions. The high-level architecture is:
+## 🧑‍🔧 How it works
 
 - **`EmojiPickerMenu`** — a `PanelMenu.Button` subclass added to the panel status area (so `Main.popupMenuManager` auto-closes on focus-out / click-out) but with `visible = false` and `set_size(0, 0)` so no tray icon is rendered. Only the popup itself appears.
 - **`_cursorAnchor`** — a 1×1 invisible `St.Widget` placed at the screen position of the cursor on every `toggle()`. The popup's `sourceActor` is set to this anchor so the menu opens right under the pointer and stays there.
 - **`EmojiCategoryData`** — each category lazily builds a flat list of `St.Button`s split into homogeneous horizontal rows of 9 cells. Buttons are kept alive in memory and merely shown/hidden as the user switches tabs and types in the search, which keeps the entire picker interactive with no per-keystroke allocation churn.
 - **Search** — the picker rebuilds the body as a single flat, deduplicated grid of matching emojis whenever the query changes. Match logic is `O(N · K)` over name + keyword tokens, with the data sourced from a generated `emojiData.js` (~1940 unique base emojis plus Fitzpatrick tone metadata).
 - **Auto-paste** — `Clipboard.triggerPaste()` synthesises a Shift+Insert keystroke on a `Clutter.InputDeviceType.KEYBOARD_DEVICE` virtual device 50ms after the menu closes, so the focus has time to return to the user's text field. For terminals, `Main.inputMethod.content_purpose === TERMINAL` triggers Ctrl+Shift+Insert instead.
-
-### Performance
-
-- **One-time category build.** The first time a tab is opened, its emoji buttons are built and cached. Subsequent tab switches and searches are pure visibility flips — no widget creation, no layout thrash.
-- **Search flattens to a single grid.** Search results are a flat list, not a per-category stack. This means a single scroll context and no per-category container overhead.
-- **CSS-only sizing.** Width, height, and cell size are pinned in CSS. The popup does not reflow based on contents, so layout cost is constant.
-- **Lazy search rebuild.** Search rows are created on demand and torn down when the query changes or the menu closes.
-- **No background work when closed.** The stage-level key interceptor is only connected while the menu is open.
-
-### Build & install steps (from source)
-
-1. **Install build dependencies**
-
-   ```bash
-   # Debian / Ubuntu
-   sudo apt install meson ninja-build gettext
-
-   # Fedora
-   sudo dnf install meson ninja-build gettext
-
-   # Arch
-   sudo pacman -S meson ninja gettext
-   ```
-
-2. **Clone and build**
-
-   ```bash
-   git clone https://github.com/ArnavK-09/emoji-picker.git
-   cd emoji-picker
-   meson setup build --prefix=/usr/local
-   meson compile -C build
-   meson install -C build
-   ```
-
-3. **Install the schema**
-
-   ```bash
-   sudo cp emoji-picker@ArnavK-09/schemas/gschemas.compiled \
-            /usr/share/glib-2.0/schemas/
-   sudo glib-compile-schemas /usr/share/glib-2.0/schemas/
-   ```
-
-4. **Symlink into the user extensions directory**
-
-   ```bash
-   mkdir -p ~/.local/share/gnome-shell/extensions
-   ln -s "$(pwd)/emoji-picker@ArnavK-09" \
-         ~/.local/share/gnome-shell/extensions/emoji-picker@ArnavK-09
-   ```
-
-5. **Enable the extension**
-
-   ```bash
-   gnome-extensions enable emoji-picker@ArnavK-09
-   ```
-
-6. **Log out and back in** (required on Wayland).
-
-7. **Open the picker** with the default shortcut: `Ctrl + K`.
-
 
 ## 💻 Contributing
 
@@ -148,7 +65,7 @@ gnome-extensions enable emoji-picker@ArnavK-09
    Clone the repo locally:
 
    ```bash
-   git clone https://github.com/ArnavK-09/emoji-picker.git
+   git clone https://github.com/ArnavK-09/emoji-picker-gnome-extension.git
    ```
 
 3. **Create a Branch**  
@@ -177,7 +94,7 @@ gnome-extensions enable emoji-picker@ArnavK-09
 
 ## 🙋‍♂️ Issues
 
-Found a bug or need help? Please create an issue on the [GitHub repository](https://github.com/ArnavK-09/emoji-picker/issues) with a detailed description.
+Found a bug or need help? Please create an issue on the [GitHub repository](https://github.com/ArnavK-09/emoji-picker-gnome-extension/issues) with a detailed description.
 
 ## 👤 Author
 
@@ -189,27 +106,12 @@ Found a bug or need help? Please create an issue on the [GitHub repository](http
   </tbody>
 </table>
 
-
-## 🛣️ Roadmap
-
-|Task | Status |
-| :---: | :---: |
-|Cursor-anchored popup | 🟢  | 
-|~1940 emoji coverage with full keyword search | 🟢  | 
-|Auto-paste into focused field | 🟢  | 
-|Skin-tone modifier | 🟢  | 
-|Recently-used pinned to front | 🟢  | 
-|Custom keybind (default Ctrl+K) | 🟢  | 
-|Animated transitions | 🟡 | 
-|User-contributed emoji packs | 🔴  | 
-
-
 ---
 
 <h2 align="center">📄 License</h2>
 
 <p align="center">
-<strong>emoji-picker</strong> is licensed under the <code>Unlicense</code> License. See the <a href="https://github.com/ArnavK-09/emoji-picker/blob/main/LICENSE">LICENSE</a> file for more details.
+<strong>emoji-picker</strong> is licensed under the <code>Unlicense</code> License. See the <a href="https://github.com/ArnavK-09/emoji-picker-gnome-extension/blob/main/LICENSE">LICENSE</a> file for more details.
 </p>
 
 ---

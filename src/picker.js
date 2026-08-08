@@ -178,7 +178,7 @@ const EmojiPickerMenu = GObject.registerClass(
 
       const box = this.menu.box;
       box.add_style_class_name('emoji-picker-menu');
-      box.spacing = 4;
+      box.spacing = 2;
 
       this._headerBox = new St.BoxLayout({
         style_class: 'emoji-categories-header',
