@@ -34,9 +34,9 @@ meson install -C build
 > Then enable the extension:
 
 ```bash
-# Symlink or copy into your user extensions directory
+# Copy into your user extensions directory
 mkdir -p ~/.local/share/gnome-shell/extensions
-ln -s "$(pwd)" \
+rsync -a --exclude '.git' "$(pwd)/" \
       ~/.local/share/gnome-shell/extensions/emoji-picker@ArnavK-09
 
 # Enable (you may need to log out and back in first on Wayland)

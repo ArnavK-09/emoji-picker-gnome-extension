@@ -7,7 +7,12 @@ import * as AnimationUtils from "resource:///org/gnome/shell/misc/animationUtils
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 
-import { CATEGORIES, EMOJI_BY_CHAR, ALL_EMOJIS, applySkinTone } from "./emojiData.js";
+import {
+  CATEGORIES,
+  EMOJI_BY_CHAR,
+  ALL_EMOJIS,
+  applySkinTone,
+} from "./emojiData.js";
 import { Clipboard } from "./clipboard.js";
 import { RecentStore } from "./recents.js";
 import { SETTING } from "./constants.js";
@@ -110,7 +115,8 @@ function isPrintableKey(event) {
   );
 }
 
-function makeEmojiButton(char, name, onActivate, scrollView) {
+function makeEmojiButton(char, name, onActivate, scrollView, opts) {
+  const { rowIndex = -1, onUpToSearch = null } = opts || {};
   const btn = new St.Button({
     style_class: "EmojisItemStyle",
     can_focus: true,
@@ -131,6 +137,12 @@ function makeEmojiButton(char, name, onActivate, scrollView) {
     const sym = event.get_key_symbol();
     if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
       onActivate(btn._emoji);
+      return Clutter.EVENT_STOP;
+    }
+    // Leaving the grid via Up only when on the very first row; other rows
+    // keep native grid navigation so Up moves up within the grid.
+    if (sym === Clutter.KEY_Up && rowIndex === 0 && onUpToSearch) {
+      onUpToSearch();
       return Clutter.EVENT_STOP;
     }
     return Clutter.EVENT_PROPAGATE;
@@ -166,10 +178,11 @@ function padRowContainer(row, usedColumns) {
 }
 
 class EmojiCategoryData {
-  constructor(tab, emojis, onActivate, scrollView) {
+  constructor(tab, emojis, onActivate, scrollView, onUpToSearch) {
     this.tab = tab;
     this.emojis = emojis;
     this._onActivate = onActivate;
+    this._onUpToSearch = onUpToSearch || null;
     this._scrollView = scrollView;
     this._rows = [];
     this._buttons = [];
@@ -194,6 +207,10 @@ class EmojiCategoryData {
         name,
         this._onActivate,
         this._scrollView,
+        {
+          rowIndex: Math.floor(i / EMOJIS_PER_ROW),
+          onUpToSearch: this._onUpToSearch,
+        },
       );
       gridLayout.attach(btn, col, 0, 1, 1);
       this._buttons.push(btn);
@@ -276,6 +293,39 @@ const EmojiPickerMenu = GObject.registerClass(
           x_align: Clutter.ActorAlign.CENTER,
         });
         btn.connect("clicked", () => this._activateTab(tab.id));
+        btn.connect("key-press-event", (_a, event) => {
+          const sym = event.get_key_symbol();
+          const tabIds = TABS.map((t) => t.id);
+          const idx = tabIds.indexOf(tab.id);
+          if (sym === Clutter.KEY_Up || sym === Clutter.KEY_Left) {
+            const prevId = tabIds[(idx - 1 + tabIds.length) % tabIds.length];
+            if (this._tabButtons.get(prevId)) {
+              this._focusTab(prevId);
+              return Clutter.EVENT_STOP;
+            }
+          }
+          if (sym === Clutter.KEY_Right) {
+            const nextId = tabIds[(idx + 1) % tabIds.length];
+            if (this._tabButtons.get(nextId)) {
+              this._focusTab(nextId);
+              return Clutter.EVENT_STOP;
+            }
+          }
+          if (sym === Clutter.KEY_Down || sym === Clutter.KEY_Tab) {
+            this._focusSearchEntry();
+            return Clutter.EVENT_STOP;
+          }
+          if (sym === Clutter.KEY_ISO_Left_Tab) {
+            const last = this._lastVisibleResult();
+            if (last) {
+              global.stage.set_key_focus(last);
+              return Clutter.EVENT_STOP;
+            }
+            this._focusSearchEntry();
+            return Clutter.EVENT_STOP;
+          }
+          return Clutter.EVENT_PROPAGATE;
+        });
         this._tabButtons.set(tab.id, btn);
         this._headerBox.add_child(btn);
       }
@@ -308,6 +358,28 @@ const EmojiPickerMenu = GObject.registerClass(
             global.stage.set_key_focus(first);
             return Clutter.EVENT_STOP;
           }
+          return Clutter.EVENT_PROPAGATE;
+        }
+        if (sym === Clutter.KEY_Up) {
+          const tabIds = TABS.map((t) => t.id);
+          const activeTabId = this._activeTab;
+          const startIdx =
+            activeTabId && tabIds.includes(activeTabId)
+              ? tabIds.indexOf(activeTabId)
+              : 0;
+          this._focusTab(tabIds[startIdx]);
+          return Clutter.EVENT_STOP;
+        }
+        if (sym === Clutter.KEY_Tab) {
+          const first = this._firstVisibleResult();
+          if (first) {
+            global.stage.set_key_focus(first);
+            return Clutter.EVENT_STOP;
+          }
+        }
+        if (sym === Clutter.KEY_ISO_Left_Tab) {
+          this._focusTab(TABS[0].id);
+          return Clutter.EVENT_STOP;
         }
         return Clutter.EVENT_PROPAGATE;
       });
@@ -381,6 +453,20 @@ const EmojiPickerMenu = GObject.registerClass(
       );
     }
 
+    _focusSearchEntry() {
+      global.stage.set_key_focus(this._searchEntry);
+    }
+
+    // Focus a category tile and switch to it immediately (focus-follows
+    // activation), so arrow navigation changes the tab without needing Enter.
+    _focusTab(id) {
+      const btn = this._tabButtons.get(id);
+      if (!btn) return false;
+      global.stage.set_key_focus(btn);
+      this._activateTab(id);
+      return true;
+    }
+
     _connectStageKey() {
       if (this._stageKeyId) return;
       this._stageKeyId = global.stage.connect("key-press-event", (_s, event) =>
@@ -414,6 +500,20 @@ const EmojiPickerMenu = GObject.registerClass(
         this._searchEntry.set_text(event.get_key_unicode());
         global.stage.set_key_focus(this._searchEntry);
         this._searchEntry.clutter_text.set_cursor_position(1);
+        return Clutter.EVENT_STOP;
+      }
+
+      if (sym === Clutter.KEY_Tab) {
+        global.stage.set_key_focus(this._searchEntry);
+        return Clutter.EVENT_STOP;
+      }
+      if (sym === Clutter.KEY_ISO_Left_Tab) {
+        const activeTabId = this._activeTab;
+        if (activeTabId && this._tabButtons.get(activeTabId)) {
+          this._focusTab(activeTabId);
+        } else {
+          this._focusSearchEntry();
+        }
         return Clutter.EVENT_STOP;
       }
 
@@ -509,6 +609,10 @@ const EmojiPickerMenu = GObject.registerClass(
           emojis[i].name,
           onActivate,
           this._bodyScroll,
+          {
+            rowIndex: Math.floor(i / EMOJIS_PER_ROW),
+            onUpToSearch: () => this._focusSearchEntry(),
+          },
         );
         gridLayout.attach(btn, col, 0, 1, 1);
         col++;
@@ -543,6 +647,20 @@ const EmojiPickerMenu = GObject.registerClass(
       return walk(this._bodyBox);
     }
 
+    _lastVisibleResult() {
+      let last = null;
+      const walk = (actor) => {
+        if (actor.visible && actor.can_focus && actor._emoji) last = actor;
+        if (typeof actor.get_children === "function") {
+          for (const child of actor.get_children()) {
+            walk(child);
+          }
+        }
+      };
+      walk(this._bodyBox);
+      return last;
+    }
+
     _buttonMatches(emoji, query) {
       if (!emoji) return false;
       if (emoji.name && emoji.name.toLowerCase().includes(query)) return true;
@@ -573,6 +691,7 @@ const EmojiPickerMenu = GObject.registerClass(
           emojis,
           (emoji) => this._selectEmoji(emoji),
           this._bodyScroll,
+          () => this._focusSearchEntry(),
         );
         this._categories.set(tab.id, cat);
         this._categoryOrder.push(cat);
@@ -590,6 +709,7 @@ const EmojiPickerMenu = GObject.registerClass(
         emojis,
         (emoji) => this._selectEmoji(emoji),
         this._bodyScroll,
+        () => this._focusSearchEntry(),
       );
       cat.build();
       return cat;
