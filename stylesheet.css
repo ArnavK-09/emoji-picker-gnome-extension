@@ -1,7 +1,7 @@
 .popup-menu-box.emoji-picker-menu {
-  width: 342px;
-  min-width: 342px;
-  max-width: 342px;
+  width: 324px;
+  min-width: 324px;
+  max-width: 324px;
   background-color: rgba(28, 28, 28, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
@@ -59,7 +59,6 @@
   max-height: 320px;
   margin-top: 2px;
   margin-bottom: 6px;
-  padding-right: 6px;
   background-color: transparent;
 }
 

@@ -18,7 +18,7 @@ const TABS = [
 ];
 
 const EMOJIS_PER_ROW = 9;
-const POPUP_WIDTH = 342;
+const POPUP_WIDTH = 324;
 const SEARCH_FOCUS_DELAY_MS = 20;
 const KEYBIND_DEBOUNCE_MS = 600;
 
@@ -241,7 +241,7 @@ const EmojiPickerMenu = GObject.registerClass(
 
       this._bodyScroll = new St.ScrollView({
         style_class: 'emoji-body-scroll',
-        overlay_scrollbars: true,
+        overlay_scrollbars: false,
         hscrollbar_policy: St.PolicyType.NEVER,
         vscrollbar_policy: St.PolicyType.AUTOMATIC,
         x_expand: true,
