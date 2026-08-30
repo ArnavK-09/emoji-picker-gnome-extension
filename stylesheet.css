@@ -63,8 +63,12 @@
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+.emoji-search-row .search-entry .hint-text {
+  color: rgba(255, 255, 255, 0.4);
+}
+
 .emoji-body-scroll {
-  max-height: 320px;
+  height: 108px;
   margin: 0 0 6px 0;
   background-color: transparent;
 }
