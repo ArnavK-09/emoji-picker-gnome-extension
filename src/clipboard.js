@@ -9,7 +9,8 @@ export const VIRTUAL_KEYBOARD_TYPE = Clutter.InputDeviceType.KEYBOARD_DEVICE;
 export class Clipboard {
   constructor() {
     this._clipboard = St.Clipboard.get_default();
-    this._device = Clutter.get_default_backend()
+    this._device = global.stage.context
+      .get_backend()
       .get_default_seat()
       .create_virtual_device(VIRTUAL_KEYBOARD_TYPE);
     this._contentPurpose = Main.inputMethod?.content_purpose ?? null;
